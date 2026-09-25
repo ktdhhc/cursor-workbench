@@ -1,0 +1,15 @@
+
+> cursor-workbench@0.1.0 doctor
+> node scripts/doctor.mjs
+
+Cursor Workbench environment — win32-x64
+[ok] node: Node 24.19.0 on win32-x64 (requires >=22)
+[ok] platform: win32-x64
+[ok] env: .env found
+[ok] key: AI_API_KEY is set (hidden)
+[ok] model: https://api.deepseek.com/v1 · deepseek-flash
+[!!] editorRuntime: no code-server runtime for this platform — editor needs WSL (Windows) or a native source build
+[ok] editorSource: vendor/vscode cloned (upstream 1.138.0)
+[ok] build: production client build present
+[ok] wsl: WSL distros: Ubuntu
+[ok] server: already responding on http://127.0.0.1:4317 (editor disabled)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export PATH="$HOME/.nvm/versions/node/v24.19.0/bin:$PATH"
+# code-server bundles its own Node runtime; no host Node is required here.
 export CURSOR_WORKBENCH_URL="http://127.0.0.1:${PORT:-4317}"
 export CURSOR_WORKBENCH_BRIDGE_TOKEN="$(cat "$ROOT/.state/bridge-token")"
 # code-server gives PORT precedence over --bind-addr; it must not inherit the API port.

@@ -20,3 +20,11 @@ test('window surfaces cannot scroll the outer clipped workspace', async () => {
   assert.match(css, /\.editor-window\s*\{[^}]*position:\s*absolute/);
   assert.match(css, /\.message-heading \.copy-control\s*\{[^}]*opacity:\s*1/);
 });
+
+test('editor-disabled state guides users instead of dead-ending', async () => {
+  const app = await readFile(new URL('../client/App.jsx', import.meta.url), 'utf8');
+  assert.match(app, /Editor not enabled on this machine/);
+  assert.match(app, /editorDisabled \? '编辑器未在本机启用 · 点击查看启用方式'/);
+  const css = await readFile(new URL('../client/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.editor-options/);
+});

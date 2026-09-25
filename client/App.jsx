@@ -87,6 +87,7 @@ export default function App() {
   const task = state?.tasks.find((item) => item.id === selectedId) || null;
   const activeCount = state?.tasks.filter(isActive).length || 0;
   const editorUrl = useMemo(() => getEditorUrl(state?.config), [state?.config.editorUrl, state?.config.workspacePath]);
+  const editorDisabled = Boolean(state && state.config.editorEnabled === false);
   const draftKey = selectedId || 'new';
   const taskMode = task?.mode || createdModes[selectedId] || (selectedId ? readPreference(`taskMode.${selectedId}`, null) : newMode);
 
@@ -263,7 +264,7 @@ export default function App() {
     <header className="titlebar" inert={modalOpen}>
       <div className="titlebar-brand"><span className="brand-mark"><Code2 size={16} strokeWidth={1.8} /></span><span>Workbench</span><span className="local-label">LOCAL</span></div>
       <div className="window-switcher" role="group" aria-label="Workspace window">
-        <button type="button" aria-pressed={windowMode === 'editor'} className={windowMode === 'editor' ? 'is-active' : ''} onClick={() => setWindowMode('editor')} title="编辑器窗口 · Ctrl+Shift+E"><Code2 size={14} /><span>Editor Window</span></button>
+        <button type="button" aria-pressed={windowMode === 'editor'} className={windowMode === 'editor' ? 'is-active' : ''} onClick={() => setWindowMode('editor')} title={editorDisabled ? '编辑器未在本机启用 · 点击查看启用方式' : '编辑器窗口 · Ctrl+Shift+E'}><Code2 size={14} /><span>Editor Window</span></button>
         <button type="button" aria-pressed={windowMode === 'agents'} className={windowMode === 'agents' ? 'is-active' : ''} onClick={() => setWindowMode('agents')} title="智能体窗口 · Ctrl+Shift+E"><Bot size={14} /><span>Agents Window</span>{activeCount > 0 && <span className="mode-running-count">{activeCount}</span>}</button>
       </div>
       <div className="titlebar-meta"><span className={`connection-dot ${connection === 'live' ? 'is-live' : ''}`} title={connection === 'live' ? 'Live updates connected' : 'Live updates disconnected'} /><span className="titlebar-workspace" title={state?.config.workspacePath}>{state?.config.workspaceName || 'Local workspace'}</span><span className="titlebar-shortcut" title="Switch between editor and agents">Ctrl ⇧ E</span></div>
@@ -295,7 +296,16 @@ export default function App() {
           <iframe ref={iframeRef} className="editor-frame" src={editorUrl} title={`Editor — ${state?.config.workspaceName || 'workspace'}`} onLoad={editorDidLoad} onError={() => setEditorIssue('The editor could not be loaded. Check the local code-server service, then reload the editor.')} />
           {!editorLoaded && !editorIssue && <div className="editor-loading" role="status"><LoaderCircle size={20} className="spin" /><span>Opening your editor…</span><p>Your files and terminal run in the local workspace.</p></div>}
           {editorIssue && <div className="editor-recovery"><ErrorNotice><strong>Editor connection</strong><p>{editorIssue}</p><div className="editor-recovery-actions"><button type="button" className="secondary-button" onClick={reloadEditor}><RefreshCw size={13} />Reload editor</button><a className="secondary-button" href={editorUrl} target="_blank" rel="noopener noreferrer">Open separately<ArrowUpRight size={13} /></a></div></ErrorNotice></div>}
-        </> : <div className="editor-unavailable"><Code2 size={30} strokeWidth={1.4} /><h2>{state ? 'Editor URL unavailable' : 'Connecting to your workspace'}</h2><p>{state ? 'The server must provide a same-origin /editor/ URL for this workspace.' : 'The editor will open when the local server is ready.'}</p><button className="secondary-button" type="button" onClick={reconnect}><RefreshCw size={14} />Reconnect</button></div>}
+        </> : state && state.config.editorEnabled === false ? <div className="editor-unavailable">
+          <Code2 size={30} strokeWidth={1.4} />
+          <h2>Editor not enabled on this machine</h2>
+          <p>Agent tasks, file tools and approved terminal commands work without it. To browse and hand-edit files in the real editor, enable it one of these ways:</p>
+          <ul className="editor-options">
+            <li><strong>Windows + WSL2:</strong> install WSL with Ubuntu, then run <code>npm run launch</code> again.</li>
+            <li><strong>Windows without WSL:</strong> build the cloned VS Code source natively — see README, “Enable the editor without WSL”.</li>
+            <li><strong>Linux / macOS:</strong> run <code>npm run setup</code>, then <code>npm run launch</code>.</li>
+          </ul>
+        </div> : <div className="editor-unavailable"><Code2 size={30} strokeWidth={1.4} /><h2>{state ? 'Editor URL unavailable' : 'Connecting to your workspace'}</h2><p>{state ? 'The server must provide a same-origin /editor/ URL for this workspace.' : 'The editor will open when the local server is ready.'}</p><button className="secondary-button" type="button" onClick={reconnect}><RefreshCw size={14} />Reconnect</button></div>}
       </section>
     </div>
   </div>;

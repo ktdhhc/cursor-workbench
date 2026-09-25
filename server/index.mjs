@@ -23,12 +23,16 @@ let activeFile = null;
 let lastBridgeSeen = 0;
 let requestedMode = null;
 let broadcastTimer;
+// The editor iframe is opt-in: launchers set EDITOR_ENABLED=1 only when a real
+// editor runtime is actually serving. Unset means Agents-only on this machine.
+const editorEnabled = /^(?:1|true)$/i.test(process.env.EDITOR_ENABLED || '');
 const config = {
   model: process.env.AI_MODEL || 'deepseek-flash',
   baseUrl: process.env.AI_BASE_URL || 'https://api.deepseek.com/v1',
   configured: Boolean(process.env.AI_API_KEY),
   workspaceName: path.basename(workspace), workspacePath: workspace,
-  editorUrl: `/editor/?folder=${encodeURIComponent(workspace)}`,
+  editorEnabled,
+  editorUrl: editorEnabled ? `/editor/?folder=${encodeURIComponent(workspace)}` : null,
 };
 const engine = new AgentEngine({ workspace, stateDir: path.join(stateDir, 'agents'), baseUrl: config.baseUrl, model: config.model, apiKey: process.env.AI_API_KEY, onChange: broadcast });
 await engine.init();
@@ -67,7 +71,7 @@ proxy.on('error', (_err, _req, res) => {
 app.use('/editor', (req, res) => proxy.web(req, res));
 app.use(express.json({ limit: '256kb' }));
 app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
-app.get('/api/health', (_req, res) => res.json({ ok: true, model: config.model, configured: config.configured, bridgeConnected: state().bridgeConnected }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, model: config.model, configured: config.configured, editorEnabled: config.editorEnabled, bridgeConnected: state().bridgeConnected }));
 app.get('/api/state', (_req, res) => res.json(state()));
 app.get('/api/events', (req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
@@ -118,7 +122,13 @@ app.post('/api/bridge/mode', (req, res) => {
   requestedMode = { mode: 'agents', at: Date.now() }; broadcast(); res.json({ ok: true });
 });
 app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found.' }));
-app.use(express.static(path.join(root, 'dist'), { dotfiles: 'deny' }));
+app.use(express.static(path.join(root, 'dist'), {
+  dotfiles: 'deny',
+  setHeaders: (res, filePath) => {
+    // Hashed assets cache forever; index.html must revalidate so users never run a stale bundle.
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
 app.get('/', (_req, res) => res.sendFile(path.join(root, 'dist/index.html')));
 app.use((err, _req, res, _next) => {
   const key = process.env.AI_API_KEY;

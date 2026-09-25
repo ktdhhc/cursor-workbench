@@ -174,6 +174,9 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 400; line-height: 1.4;
 .conversation-loading, .editor-unavailable { display: flex; flex: 1; align-items: center; justify-content: center; flex-direction: column; gap: 9px; padding: 28px; color: var(--secondary); }
 .conversation-loading h2, .editor-unavailable h2 { color: var(--text); font-weight: 500; font-size: 16px; margin: 9px 0 0; }
 .conversation-loading p, .editor-unavailable p { margin: 0 0 8px; line-height: 1.6; text-align: center; }
+.editor-options { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; text-align: left; font-size: 12px; line-height: 1.65; }
+.editor-options strong { font-weight: 550; }
+.editor-options code { font-family: var(--mono); font-size: 11px; background: #272a27; border-radius: 3px; padding: 1px 5px; }
 .conversation-view { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .transcript-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 0 28px; }
 .transcript { width: 100%; max-width: 760px; margin: 0 auto; padding-top: 23px; }

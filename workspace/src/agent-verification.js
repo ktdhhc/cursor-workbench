@@ -1,1 +1,1 @@
-export const agentVerified = 43;
+export const agentVerified = 42;

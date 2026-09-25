@@ -1,0 +1,34 @@
+
+> cursor-workbench@0.1.0 launch
+> node scripts/launch.mjs
+
+
+> cursor-workbench@0.1.0 build
+> vite build
+
+[36mvite v7.3.6 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 2004 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                 [39m[1m[2m  1.05 kB[22m[1m[22m[2m │ gzip:   0.60 kB[22m
+[2mdist/[22m[35massets/index-BjR91TT3.css  [39m[1m[2m 30.14 kB[22m[1m[22m[2m │ gzip:   7.12 kB[22m
+[2mdist/[22m[36massets/index-D2dW9t34.js   [39m[1m[2m438.77 kB[22m[1m[22m[2m │ gzip: 136.58 kB[22m
+[32m✓ built in 1.92s[39m
+(node:18580) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Open http://127.0.0.1:4317 — Agents-only mode (no editor runtime on this machine).
+Agent tasks, file tools and approved terminal commands work. To enable the real editor, see README: “Enable the editor without WSL”, or install WSL and run `npm run launch` again.
+file:///C:/Users/fangl/.zcode/workspace/default/cursor-workbench/server/files.mjs:10
+  return Object.assign(new Error(message), { status, statusCode: status });
+                       ^
+
+Error: Task history format or workspace does not match. Existing state was not overwritten.
+    at fileError (file:///C:/Users/fangl/.zcode/workspace/default/cursor-workbench/server/files.mjs:10:24)
+    at AgentEngine.init (file:///C:/Users/fangl/.zcode/workspace/default/cursor-workbench/server/engine.mjs:227:120)
+    at async file:///C:/Users/fangl/.zcode/workspace/default/cursor-workbench/server/index.mjs:38:1 {
+  status: 409,
+  statusCode: 409
+}
+
+Node.js v24.19.0

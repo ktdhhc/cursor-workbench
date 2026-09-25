@@ -113,6 +113,18 @@ function repairToolHistory(history, reason) {
   for (const call of pending.values()) history.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ error: reason, interrupted: true }) });
 }
 
+/** The same physical workspace can be reached as /mnt/c/... (WSL) and C:\... (Windows native). */
+export function sameWorkspacePath(a, b) {
+  const canonical = value => {
+    let text = String(value).replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+    const wslMount = text.match(/^\/mnt\/([a-z])(?:\/(.*))?$/);
+    if (wslMount) text = `${wslMount[1]}:/${wslMount[2] || ''}`;
+    else if (/^[a-z]:$/.test(text)) text = `${text}/`;
+    return text.replace(/\/+$/, '') || '/';
+  };
+  return canonical(a) === canonical(b);
+}
+
 function killTree(child, env, force = false) {
   if (!child.pid) return;
   if (process.platform === 'win32') {
@@ -224,7 +236,7 @@ export class AgentEngine {
       if (error.code !== 'ENOENT') throw fileError(`Cannot load task history: ${this.#redact(error.message)}. Existing state was not overwritten.`, error.status || 500);
     }
     if (persisted) {
-      if (persisted.version !== 1 || persisted.workspace !== this.files.root || !Array.isArray(persisted.tasks)) throw fileError('Task history format or workspace does not match. Existing state was not overwritten.', 409);
+      if (persisted.version !== 1 || !sameWorkspacePath(persisted.workspace, this.files.root) || !Array.isArray(persisted.tasks)) throw fileError('Task history format or workspace does not match. Existing state was not overwritten.', 409);
       for (const record of persisted.tasks) {
         const task = record?.task;
         if (!task?.id || !Array.isArray(task.messages) || !Array.isArray(task.activities) || !Array.isArray(task.changes) || !Array.isArray(record.history) || !['agent', 'ask'].includes(record.mode)) {

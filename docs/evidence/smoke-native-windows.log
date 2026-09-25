@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "checks": [
+    "Configured deepseek-flash server is live",
+    "Real provider task completed with Chinese response"
+  ]
+}
+{
+  "ok": true,
+  "checks": [
+    "Configured deepseek-flash server is live",
+    "Approved exact test command: node --test",
+    "Real model read source, created file, requested command approval, and executed tests"
+  ]
+}
