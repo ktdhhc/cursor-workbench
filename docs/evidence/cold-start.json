@@ -1,0 +1,61 @@
+{
+  "checkedAt": "2026-09-25T04:32:33.241Z",
+  "apiStatus": 200,
+  "editorStatus": 200,
+  "editorHealth": {
+    "status": "alive",
+    "lastHeartbeat": 1790310752630
+  },
+  "configured": true,
+  "model": "deepseek-flash",
+  "bridgeConnected": true,
+  "restoredTaskCount": 9,
+  "taskStatuses": [
+    {
+      "id": "a627e566-c417-4705-9c21-98542e3a7b6b",
+      "title": "Read, edit, run tests",
+      "status": "completed"
+    },
+    {
+      "id": "0c0a3adf-4763-43df-b67f-7d30d94b479b",
+      "title": "Parallel agent A",
+      "status": "completed"
+    },
+    {
+      "id": "4c1e9232-d25e-4917-b8ab-003130d7fe37",
+      "title": "Parallel agent B",
+      "status": "completed"
+    },
+    {
+      "id": "bcf9e97f-5600-43fc-a4cf-c21e915f6481",
+      "title": "Live chat verification",
+      "status": "completed"
+    },
+    {
+      "id": "a761698f-7fc4-4a65-ab71-804b44e0d564",
+      "title": "请只回复：浏览器对话验证成功。不要调用工具。",
+      "status": "completed"
+    },
+    {
+      "id": "514e0b6e-acd4-4c90-bb34-4ed876de3107",
+      "title": "Parallel agent A",
+      "status": "completed"
+    },
+    {
+      "id": "bb873c46-fb4f-4ce2-8b83-686e924d2070",
+      "title": "Parallel agent B",
+      "status": "completed"
+    },
+    {
+      "id": "c899f60f-fd22-458f-89e1-436c4f5f7fbd",
+      "title": "Read, edit, run tests",
+      "status": "completed"
+    },
+    {
+      "id": "8eaa0045-da5b-450d-8beb-dd5ff661cf20",
+      "title": "Live chat verification",
+      "status": "completed"
+    }
+  ],
+  "activeFile": "src/agent-verification.js"
+}

@@ -60,4 +60,4 @@ Microsoft VS Code 源码真实克隆于 `vendor/vscode`。运行编辑器使用 
 
 这是 Cursor **核心体验**实现，不含专有模型、云端 VM、PR 托管、多人租户、计费或 Cursor 商业服务。Firecrawl 未配置，调研使用官方公开资料替代；Context7 实际检索结果保留在 `docs/research`。
 
-阶段性截图、真实模型验证和需求审计见 `docs/evidence/`。
+阶段性截图、真实模型验证和需求审计见 `docs/evidence/`。最终 WSL Node24 验证为 32 项测试通过、生产构建成功；冷启动、真实 DeepSeek 并发任务、浏览器文件保存/变更还原和双窗口切换都有独立证据。完整需求映射见 `docs/evidence/REQUIREMENTS-AUDIT.md`，视觉审阅的实际结论与流程差异见 `docs/evidence/FINAL-REVIEW.md`。

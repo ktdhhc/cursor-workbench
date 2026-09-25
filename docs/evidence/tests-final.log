@@ -1,0 +1,57 @@
+
+> cursor-workbench@0.1.0 test
+> node --test tests/*.test.mjs
+
+✔ persists exact public task shape and completes a real streamed tool loop (57.143628ms)
+✔ ask mode refuses model-requested mutations and command execution (26.622837ms)
+✔ approval exposes exact command and cwd, denial never spawns, and approved execution returns output (50.751561ms)
+✔ four-task limit, immediate cancellation, isolated streams and continuation (31.862031ms)
+✔ change review accepts and conflict-aware reverts without overwriting manual edits (18.939764ms)
+✔ provider failures are usable, redact credentials and allow a fresh continuation (28.130077ms)
+✔ restart marks in-flight tasks interrupted, clears approval and keeps tool history resumable (42.951128ms)
+✔ child environment strips provider keys and startup hooks without breaking normal development variables (0.489672ms)
+✔ commands time out and cap output while exposing failure without fabricating success (187.835423ms)
+✔ stopping an approved command terminates its process and leaves no delayed workspace mutation (970.205466ms)
+✔ a cancelled multi-tool turn is repaired before continuation without executing remaining tools (28.85904ms)
+✔ does not overwrite malformed persisted state (3.719233ms)
+✔ restart preserves ordinary configuration code exactly so undo still works (30.285285ms)
+✔ streaming never exposes a partial provider credential while chunks are assembling (158.766178ms)
+✔ reads text and serializes optimistic edits without losing another writer (14.909642ms)
+✔ rejects traversal, secret paths, binary and oversized reads without hiding normal source files (16.697019ms)
+✔ rejects symlink escape for reads, writes, searches and listing (2.316996ms)
+✔ requires hashes, rejects ambiguous replacements and makes undo conflict-aware (11.247729ms)
+✔ does not expose configured credentials hidden inside otherwise normal source paths (2.664895ms)
+✔ blocks credential stores but does not blacklist similarly named source modules (6.073202ms)
+✔ API never returns server credential configuration (9.670343ms)
+✔ extension uses a token-authenticated workspace API and actual VS Code commands (1.988301ms)
+✔ editor launcher removes API PORT override before starting code-server (2.087279ms)
+✔ checked-in defaults contain no credential (6.738441ms)
+✔ assembles fragmented UTF-8 text, indexed tool calls and reasoning while streaming (25.980671ms)
+✔ surfaces HTTP and stream failures without echoing credentials (3.171144ms)
+✔ supports multiline SSE events and a finish reason without a DONE marker (0.279725ms)
+✔ aborts or times out even when a provider stream stalls (21.070773ms)
+✔ missing configuration is an explicit error and never starts mock or network work (0.261961ms)
+✔ accepts CR-only SSE framing and never executes incomplete tool-call streams (0.973475ms)
+✔ command captions reflect current state instead of stale execution labels (0.524603ms)
+✔ window surfaces cannot scroll the outer clipped workspace (3.693038ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1708.054075
+
+> cursor-workbench@0.1.0 build
+> vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2004 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.05 kB │ gzip:   0.59 kB
+dist/assets/index-Cktu2GvK.css   29.84 kB │ gzip:   7.07 kB
+dist/assets/index-CTbCviuV.js   437.39 kB │ gzip: 136.14 kB
+✓ built in 12.63s

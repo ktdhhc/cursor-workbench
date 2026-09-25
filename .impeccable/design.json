@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-25T04:30:33.332Z",
+  "title": "Design System: Cursor Workbench",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Sage action", "tonalRamp": ["oklch(15% 0.03748 131.25)", "oklch(26.43% 0.03748 131.25)", "oklch(37.86% 0.03748 131.25)", "oklch(49.29% 0.03748 131.25)", "oklch(60.71% 0.03748 131.25)", "oklch(72.14% 0.03748 131.25)", "oklch(83.57% 0.03748 131.25)", "oklch(95% 0.03748 131.25)"] },
+      "primary-ink": { "role": "primary", "displayName": "Deep olive ink", "tonalRamp": ["oklch(15% 0.02443 135.31)", "oklch(26.43% 0.02443 135.31)", "oklch(37.86% 0.02443 135.31)", "oklch(49.29% 0.02443 135.31)", "oklch(60.71% 0.02443 135.31)", "oklch(72.14% 0.02443 135.31)", "oklch(83.57% 0.02443 135.31)", "oklch(95% 0.02443 135.31)"] },
+      "sidebar": { "role": "neutral", "displayName": "Rail charcoal", "tonalRamp": ["oklch(15% 0.00253 247.95)", "oklch(26.43% 0.00253 247.95)", "oklch(37.86% 0.00253 247.95)", "oklch(49.29% 0.00253 247.95)", "oklch(60.71% 0.00253 247.95)", "oklch(72.14% 0.00253 247.95)", "oklch(83.57% 0.00253 247.95)", "oklch(95% 0.00253 247.95)"] },
+      "canvas": { "role": "neutral", "displayName": "Working charcoal", "tonalRamp": ["oklch(15% 0.00249 247.94)", "oklch(26.43% 0.00249 247.94)", "oklch(37.86% 0.00249 247.94)", "oklch(49.29% 0.00249 247.94)", "oklch(60.71% 0.00249 247.94)", "oklch(72.14% 0.00249 247.94)", "oklch(83.57% 0.00249 247.94)", "oklch(95% 0.00249 247.94)"] },
+      "artifacts": { "role": "neutral", "displayName": "Artifact charcoal", "tonalRamp": ["oklch(15% 0.00362 164.70)", "oklch(26.43% 0.00362 164.70)", "oklch(37.86% 0.00362 164.70)", "oklch(49.29% 0.00362 164.70)", "oklch(60.71% 0.00362 164.70)", "oklch(72.14% 0.00362 164.70)", "oklch(83.57% 0.00362 164.70)", "oklch(95% 0.00362 164.70)"] },
+      "control": { "role": "neutral", "displayName": "Raised control", "tonalRamp": ["oklch(15% 0.00473 248.00)", "oklch(26.43% 0.00473 248.00)", "oklch(37.86% 0.00473 248.00)", "oklch(49.29% 0.00473 248.00)", "oklch(60.71% 0.00473 248.00)", "oklch(72.14% 0.00473 248.00)", "oklch(83.57% 0.00473 248.00)", "oklch(95% 0.00473 248.00)"] },
+      "hover": { "role": "neutral", "displayName": "Hover gray", "tonalRamp": ["oklch(15% 0.00338 228.90)", "oklch(26.43% 0.00338 228.90)", "oklch(37.86% 0.00338 228.90)", "oklch(49.29% 0.00338 228.90)", "oklch(60.71% 0.00338 228.90)", "oklch(72.14% 0.00338 228.90)", "oklch(83.57% 0.00338 228.90)", "oklch(95% 0.00338 228.90)"] },
+      "text": { "role": "neutral", "displayName": "Main ink", "tonalRamp": ["oklch(15% 0.00268 106.45)", "oklch(26.43% 0.00268 106.45)", "oklch(37.86% 0.00268 106.45)", "oklch(49.29% 0.00268 106.45)", "oklch(60.71% 0.00268 106.45)", "oklch(72.14% 0.00268 106.45)", "oklch(83.57% 0.00268 106.45)", "oklch(95% 0.00268 106.45)"] },
+      "secondary": { "role": "neutral", "displayName": "Secondary ink", "tonalRamp": ["oklch(15% 0.00447 157.14)", "oklch(26.43% 0.00447 157.14)", "oklch(37.86% 0.00447 157.14)", "oklch(49.29% 0.00447 157.14)", "oklch(60.71% 0.00447 157.14)", "oklch(72.14% 0.00447 157.14)", "oklch(83.57% 0.00447 157.14)", "oklch(95% 0.00447 157.14)"] },
+      "subtle": { "role": "neutral", "displayName": "Subtle ink", "tonalRamp": ["oklch(15% 0.00638 153.71)", "oklch(26.43% 0.00638 153.71)", "oklch(37.86% 0.00638 153.71)", "oklch(49.29% 0.00638 153.71)", "oklch(60.71% 0.00638 153.71)", "oklch(72.14% 0.00638 153.71)", "oklch(83.57% 0.00638 153.71)", "oklch(95% 0.00638 153.71)"] },
+      "divider": { "role": "neutral", "displayName": "Quiet divider", "tonalRamp": ["oklch(15% 0.00333 228.89)", "oklch(26.43% 0.00333 228.89)", "oklch(37.86% 0.00333 228.89)", "oklch(49.29% 0.00333 228.89)", "oklch(60.71% 0.00333 228.89)", "oklch(72.14% 0.00333 228.89)", "oklch(83.57% 0.00333 228.89)", "oklch(95% 0.00333 228.89)"] },
+      "warning": { "role": "secondary", "displayName": "Approval amber", "tonalRamp": ["oklch(15% 0.06881 82.11)", "oklch(26.43% 0.06881 82.11)", "oklch(37.86% 0.06881 82.11)", "oklch(49.29% 0.06881 82.11)", "oklch(60.71% 0.06881 82.11)", "oklch(72.14% 0.06881 82.11)", "oklch(83.57% 0.06881 82.11)", "oklch(95% 0.06881 82.11)"] },
+      "error": { "role": "secondary", "displayName": "Failure salmon", "tonalRamp": ["oklch(15% 0.07166 25.27)", "oklch(26.43% 0.07166 25.27)", "oklch(37.86% 0.07166 25.27)", "oklch(49.29% 0.07166 25.27)", "oklch(60.71% 0.07166 25.27)", "oklch(72.14% 0.07166 25.27)", "oklch(83.57% 0.07166 25.27)", "oklch(95% 0.07166 25.27)"] }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "Body / UI", "purpose": "Inherited shell text; the source leaves its default line-height unspecified." },
+      "title": { "displayName": "Compact title", "purpose": "Conversation titles and empty-panel headings, not display typography." },
+      "action": { "displayName": "Action text", "purpose": "Task names, mode labels, search text, and ordinary text actions." },
+      "label": { "displayName": "Utility label", "purpose": "Task status and model information." },
+      "metadata": { "displayName": "Metadata", "purpose": "Supporting times and counts; not primary instructions." },
+      "transcript": { "displayName": "Conversation prose", "purpose": "User messages and rendered assistant Markdown." },
+      "composer": { "displayName": "Message input", "purpose": "Textarea text; source narrows it at the phone breakpoint." },
+      "code": { "displayName": "Shell code", "purpose": "Fenced message source; command previews share the monospace family." },
+      "button": { "displayName": "Standard action", "purpose": "Primary and secondary action labels." },
+      "button-small": { "displayName": "Compact action", "purpose": "Review controls, including their actual neutral cascade result." },
+      "editor-code": { "displayName": "Native editor code", "purpose": "Explicit Code-OSS size and line-height only; family and syntax theme remain upstream-owned." }
+    },
+    "shadows": [
+      { "name": "jump-latest", "value": "0 4px 10px #10120f55", "purpose": "Floating transcript navigation action only." },
+      { "name": "task-drawer", "value": "9px 0 25px #00000035", "purpose": "Left task drawer at the narrow-layout boundary." },
+      { "name": "artifacts-drawer", "value": "-9px 0 25px #00000035", "purpose": "Right Changes/Activity drawer." }
+    ],
+    "motion": [
+      { "name": "running-spinner", "value": "animation: spin 1.6s linear infinite; @keyframes spin { to { transform: rotate(360deg); } }", "purpose": "Working and loading indicators, not decorative ambient movement." },
+      { "name": "disclosure-chevron", "value": "transition: transform 140ms ease-out;", "purpose": "Chevron rotates to 90deg when a disclosure expands." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition: none !important; } }", "purpose": "Exact source accessibility override; no additional motion system is inferred." }
+    ],
+    "breakpoints": [
+      { "name": "phone-max-width", "value": "480px" },
+      { "name": "task-drawer-max-width", "value": "760px" },
+      { "name": "compact-header-max-width", "value": "900px" },
+      { "name": "artifacts-drawer-max-width", "value": "1179px" },
+      { "name": "artifacts-inline-min-width", "value": "1180px" },
+      { "name": "keyboard-hints-hidden-max-width", "value": "1390px" },
+      { "name": "wide-desktop-min-width", "value": "1600px" },
+      { "name": "short-viewport-max-height", "value": "690px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The approval action; no invented pressed animation or shadow.",
+      "html": "<button type=\"button\" class=\"ds-button-primary\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg>Allow command</button>",
+      "css": ".ds-button-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; white-space: nowrap; text-decoration: none; border-radius: 6px; padding: 7px 12px; background: var(--primary, #bdcbb2); color: var(--primary-ink, #21291d); border: 1px solid var(--primary, #bdcbb2); cursor: pointer; } .ds-button-primary svg { flex-shrink: 0; } .ds-button-primary:hover:not(:disabled) { background: #ced9c5; } .ds-button-primary:focus-visible { outline: 2px solid var(--primary, #bdcbb2); outline-offset: 3px; } .ds-button-primary:disabled { cursor: not-allowed; opacity: .46; }"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Neutral outlined action for approval rejection and recovery.",
+      "html": "<button type=\"button\" class=\"ds-button-secondary\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/></svg>Reject</button>",
+      "css": ".ds-button-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; white-space: nowrap; text-decoration: none; border-radius: 6px; padding: 7px 11px; color: var(--text, #e4e4e2); background: var(--control, #242628); border: 1px solid #3b3e3d; cursor: pointer; } .ds-button-secondary svg { flex-shrink: 0; } .ds-button-secondary:hover:not(:disabled) { background: #2e3130; border-color: #555a55; } .ds-button-secondary:focus-visible { outline: 2px solid var(--primary, #bdcbb2); outline-offset: 3px; } .ds-button-secondary:disabled { cursor: not-allowed; opacity: .46; }"
+    },
+    {
+      "name": "Compact review action",
+      "kind": "button",
+      "refersTo": "button-small",
+      "description": "Actual neutral small-button cascade, not the overridden Accept/danger declarations.",
+      "html": "<button type=\"button\" class=\"ds-button-small\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5\"/></svg>Revert</button>",
+      "css": ".ds-button-small { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 500 11px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; white-space: nowrap; text-decoration: none; color: var(--secondary, #9da09e); background: #232525; border: 1px solid #383b39; padding: 4px 7px; border-radius: 4px; cursor: pointer; } .ds-button-small svg { flex-shrink: 0; } .ds-button-small:hover:not(:disabled) { background: #303330; color: var(--text, #e4e4e2); } .ds-button-small:focus-visible { outline: 2px solid var(--primary, #bdcbb2); outline-offset: 3px; } .ds-button-small:disabled { cursor: not-allowed; opacity: .46; }"
+    },
+    {
+      "name": "Text action",
+      "kind": "button",
+      "refersTo": "button-text",
+      "description": "Quiet text action used for clearing search and notice recovery.",
+      "html": "<button type=\"button\" class=\"ds-button-text\">Clear search</button>",
+      "css": ".ds-button-text { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 4px 6px; min-height: 25px; color: var(--secondary, #9da09e); font: 400 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; text-decoration: none; border: 0; border-radius: 6px; background: none; cursor: pointer; } .ds-button-text:hover:not(:disabled) { color: var(--text, #e4e4e2); background: var(--hover, #2b2d2e); } .ds-button-text:focus-visible { outline: 2px solid var(--primary, #bdcbb2); outline-offset: 3px; } .ds-button-text:disabled { cursor: not-allowed; opacity: .46; }"
+    },
+    {
+      "name": "Icon action",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "Shared named utility button, shown with the task-details icon.",
+      "html": "<button type=\"button\" class=\"ds-button-icon\" aria-label=\"Show changes and activity\" title=\"Show changes and activity\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M15 3v18\"/></svg></button>",
+      "css": ".ds-button-icon { width: 28px; height: 28px; flex-shrink: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--secondary, #9da09e); background: none; border: 0; border-radius: 6px; cursor: pointer; } .ds-button-icon svg { flex-shrink: 0; } .ds-button-icon:hover:not(:disabled) { background: var(--hover, #2b2d2e); color: var(--text, #e4e4e2); } .ds-button-icon:focus-visible { outline: 2px solid var(--primary, #bdcbb2); outline-offset: 3px; } .ds-button-icon:disabled { cursor: not-allowed; opacity: .46; }"
+    },
+    {
+      "name": "Task search",
+      "kind": "input",
+      "refersTo": "input-task-search",
+      "description": "The empty task-search field with the source container-level focus border.",
+      "html": "<div class=\"ds-task-search\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/></svg><input aria-label=\"Search tasks\" placeholder=\"Search tasks…\" autocomplete=\"off\"/></div>",
+      "css": ".ds-task-search { display: flex; align-items: center; gap: 7px; height: 33px; color: var(--secondary, #9da09e); padding: 0 7px; border: 1px solid #303233; border-radius: 6px; background: transparent; } .ds-task-search svg { flex-shrink: 0; } .ds-task-search:focus-within { border-color: #7e8976; } .ds-task-search > input { background: transparent; border: 0; min-width: 0; width: 100%; padding: 0; font: 400 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; color: inherit; outline: none; border-radius: 6px; caret-color: var(--primary, #bdcbb2); } .ds-task-search > input:focus-visible { outline: none; } .ds-task-search > input::placeholder { color: var(--secondary, #9da09e); opacity: 1; }"
+    },
+    {
+      "name": "Workspace mode switcher",
+      "kind": "nav",
+      "refersTo": "window-switcher",
+      "description": "The two real window modes; selected state is pressed state rather than a new routing metaphor.",
+      "html": "<div class=\"ds-window-switcher\" role=\"group\" aria-label=\"Workspace window\"><button type=\"button\" aria-pressed=\"false\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m18 16 4-4-4-4\"/><path d=\"m6 8-4 4 4 4\"/><path d=\"m14.5 4-5 16\"/></svg><span>Editor Window</span></button><button type=\"button\" aria-pressed=\"true\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 8V4H8\"/><rect width=\"16\" height=\"12\" x=\"4\" y=\"8\" rx=\"2\"/><path d=\"M2 14h2\"/><path d=\"M20 14h2\"/><path d=\"M15 13v2\"/><path d=\"M9 13v2\"/></svg><span>Agents Window</span></button></div>",
+      "css": ".ds-window-switcher { display: flex; gap: 3px; border: 1px solid #313333; padding: 3px; border-radius: 6px; background: #111313; } .ds-window-switcher > button { min-height: 29px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 4px 11px; color: var(--secondary, #9da09e); font: 400 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; border-radius: 4px; border: 0; background: none; cursor: pointer; } .ds-window-switcher svg { flex-shrink: 0; } .ds-window-switcher > button:hover { color: var(--text, #e4e4e2); background: #202222; } .ds-window-switcher > button[aria-pressed='true'] { background: #2b2e2c; color: #edf0e9; } .ds-window-switcher > button:focus-visible { outline: 2px solid var(--primary, #bdcbb2); outline-offset: 3px; } @media (max-width: 480px) { .ds-window-switcher { justify-self: end; width: fit-content; max-width: 100%; } .ds-window-switcher > button { padding: 4px 8px; gap: 5px; font-size: 11px; } .ds-window-switcher > button > svg { width: 13px; } }"
+    },
+    {
+      "name": "Running task count",
+      "kind": "chip",
+      "refersTo": "running-task-count",
+      "description": "A conditional numeric badge inside the mode button, not an interactive filter chip. The sample numeral is illustrative only.",
+      "html": "<span class=\"ds-count-context\"><span class=\"ds-running-count\">1</span></span>",
+      "css": ".ds-count-context { display: inline-flex; font: 400 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; } .ds-running-count { background: #40473c; color: #dbe5d3; min-width: 16px; padding: 0 4px; border-radius: 3px; font-size: 10px; }"
+    },
+    {
+      "name": "User message container",
+      "kind": "card",
+      "refersTo": "message-user-card",
+      "description": "The user-message surface, shown with existing task-suggestion copy; assistant prose is not wrapped in this card.",
+      "html": "<div class=\"ds-user-message\">Explore this workspace and explain its structure, main entry points, and how to run it. Do not edit files.</div>",
+      "css": ".ds-user-message { white-space: pre-wrap; padding: 13px 16px; border: 1px solid #353834; background: #232622; border-radius: 6px; color: #e5e8e1; font: 400 14px/1.75 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; overflow-wrap: anywhere; }"
+    },
+    {
+      "name": "Follow-up composer",
+      "kind": "custom",
+      "refersTo": "composer",
+      "description": "The actual existing-task field and toolbar, including the disabled send variant. Runtime auto-growth, model data, and submission remain React behavior, not simulated by this static preview.",
+      "html": "<div class=\"ds-composer\"><textarea aria-label=\"Message this agent\" placeholder=\"Ask a follow-up or describe the next step…\" rows=\"2\" spellcheck=\"false\"></textarea><div class=\"ds-composer-toolbar\"><div class=\"ds-composer-options\"><span class=\"ds-composer-mode\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\"/><path d=\"M20 2v4\"/><path d=\"M22 4h-4\"/><circle cx=\"4\" cy=\"20\" r=\"2\"/></svg><span>Follow-up</span></span><span class=\"ds-composer-divider\"></span><span class=\"ds-model-label\">Loading model…</span></div><button type=\"button\" class=\"ds-send-button\" disabled aria-label=\"Send follow-up\" title=\"Send follow-up (Enter)\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/></svg></button></div></div>",
+      "css": ".ds-composer { border: 1px solid #424641; border-radius: 6px; background: var(--control, #242628); color: var(--text, #e4e4e2); overflow: hidden; font: 400 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; } .ds-composer:focus-within { border-color: #84927a; } .ds-composer textarea { display: block; width: 100%; border: 0; outline: none; resize: none; overflow-y: auto; background: transparent; padding: 15px 15px 7px; min-height: 78px; max-height: 180px; font: 400 14px/1.65 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; color: inherit; border-radius: 0; caret-color: var(--primary, #bdcbb2); } .ds-composer textarea:focus-visible { outline: none; } .ds-composer textarea::placeholder { color: var(--secondary, #9da09e); opacity: 1; } .ds-composer svg { flex-shrink: 0; } .ds-composer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 43px; padding: 3px 10px 10px; } .ds-composer-options { display: flex; align-items: center; gap: 8px; min-width: 0; } .ds-composer-mode { display: inline-flex; align-items: center; gap: 5px; color: #d3dace; padding: 4px 5px; font-size: 11px; flex-shrink: 0; } .ds-composer-divider { width: 1px; height: 13px; background: #42453f; } .ds-model-label { color: var(--secondary, #9da09e); font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; } .ds-send-button { width: 29px; height: 28px; display: inline-flex; align-items: center; justify-content: center; padding: 0; background: var(--primary, #bdcbb2); color: var(--primary-ink, #21291d); flex-shrink: 0; border: 0; border-radius: 5px; cursor: pointer; } .ds-send-button:hover:not(:disabled) { background: #d0dcc5; } .ds-send-button:focus-visible { outline: 2px solid var(--primary, #bdcbb2); outline-offset: 3px; } .ds-send-button:disabled { cursor: not-allowed; background: #3a3e37; color: #a7b29f; opacity: .6; } @media (max-width: 480px) { .ds-composer textarea { font-size: 13px; padding: 13px 12px 7px; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Task-oriented development cockpit",
+    "overview": "This is the brief-pinned, no-roll Operate world already built: a quiet, dense developer workbench, not a marketing page or a new identity proposal. Charcoal regions, small controls, readable conversations, and restrained sage emphasis keep attention on tasks, commands, and files. The visible shell says Workbench; this independent implementation must not imply affiliation with Cursor.\n\nThe React shell and the genuine Code-OSS workbench are complementary renderers. Agents use a task rail, transcript/composer, and Changes/Activity panel. Editor mode gives the body to a persistent code-server iframe rather than reconstructing an editor from decorative components. Shared background overrides connect the two; native editor syntax colors, icons, tabs, and interaction styling remain owned by Code-OSS.",
+    "keyCharacteristics": [
+      "Dense, full-height operation with independently scrolling work regions.",
+      "Neutral dark surfaces, quiet dividers, and sage focus/action emphasis.",
+      "UI sans for controls and prose; monospace for source and tool payloads.",
+      "Real editor continuity and explicit task, approval, error, and review states.",
+      "Lucide vector interface assets, with no shipping raster imagery in the React shell."
+    ],
+    "rules": [
+      { "name": "The Scoped Sage Rule", "body": "Sage belongs to shell focus, decisive actions, links, and positive task state; it does not replace the native editor's syntax palette or its own interaction accents.", "section": "colors" },
+      { "name": "The Explicit State Rule", "body": "Pair task state with a label or accessible label and a distinct vector icon; diff additions and removals also retain their signs, rather than communicating through color alone.", "section": "colors" },
+      { "name": "The Two Text Channels Rule", "body": "Use the platform UI stack for shell labels and conversation prose, and the monospace stack for source code, command previews, and structured tool output; filenames in navigation remain UI text.", "section": "typography" },
+      { "name": "The Flat Panels, Lifted Overlays Rule", "body": "Keep structural panels and contained content flat; reserve the existing soft shadows for drawers and the floating jump-to-latest action.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use sage for shell focus, decisive actions, links, and positive task state, with explicit state labels or accessible labels.",
+      "Do share the configured charcoal backgrounds across shell and editor while leaving native editor syntax and interaction colors upstream-owned.",
+      "Do preserve the task rail, transcript/composer, and artifact relationship through inline panels or drawers, and keep the real editor mounted across mode switches.",
+      "Do retain readable transcript text, visible response-copy actions, explicit command approval, and honest tool-status captions.",
+      "Do use Lucide SVGs for shell interface icons and keep research images outside the shipped interface."
+    ],
+    "donts": [
+      "Don't turn the shell's restrained accent into a ban on native Code-OSS syntax colors, diff colors, or semantic warnings and errors.",
+      "Don't replace the genuine editor with a simulated code card or imply this independent workbench is the proprietary Cursor application.",
+      "Don't introduce promotional kickers, a marketing hero, or a generic detached-card dashboard into this operational surface.",
+      "Don't reuse compact metadata or disabled-state opacity for primary instructions and conversation content.",
+      "Don't treat derived sidecar tonal strips or overridden component declarations as shipped palette or variant tokens."
+    ]
+  }
+}

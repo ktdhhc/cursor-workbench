@@ -1,25 +1,25 @@
 {
-  "startedAt": "2026-09-25T03:41:03.595Z",
+  "startedAt": "2026-09-25T04:05:06.713Z",
   "checks": [
     "Configured deepseek-flash server is live",
     "Two real tasks were simultaneously running and completed with isolated histories"
   ],
   "tasks": [
     {
-      "id": "514e0b6e-acd4-4c90-bb34-4ed876de3107",
+      "id": "0c0a3adf-4763-43df-b67f-7d30d94b479b",
       "title": "Parallel agent A",
       "prompt": "Reply with exactly PARALLEL_A_SUCCESS. Do not use tools.",
       "status": "completed",
-      "createdAt": "2026-09-25T03:41:03.624Z",
-      "updatedAt": "2026-09-25T03:41:04.295Z",
+      "createdAt": "2026-09-25T04:05:06.743Z",
+      "updatedAt": "2026-09-25T04:05:07.471Z",
       "messages": [
         {
-          "id": "80a01ece-49f5-4b01-afa7-0fd64c08f45c",
+          "id": "a18eb9cd-3d6b-4e4d-896c-8fef52f0dd48",
           "role": "user",
           "content": "Reply with exactly PARALLEL_A_SUCCESS. Do not use tools."
         },
         {
-          "id": "87c175c7-15ae-4719-b553-70d1b50ee20d",
+          "id": "d3e79bd9-3b36-42fd-8682-7d4cda70cbef",
           "role": "assistant",
           "content": "PARALLEL_A_SUCCESS"
         }
@@ -30,20 +30,20 @@
       "error": null
     },
     {
-      "id": "bb873c46-fb4f-4ce2-8b83-686e924d2070",
+      "id": "4c1e9232-d25e-4917-b8ab-003130d7fe37",
       "title": "Parallel agent B",
       "prompt": "Reply with exactly PARALLEL_B_SUCCESS. Do not use tools.",
       "status": "completed",
-      "createdAt": "2026-09-25T03:41:03.624Z",
-      "updatedAt": "2026-09-25T03:41:04.308Z",
+      "createdAt": "2026-09-25T04:05:06.743Z",
+      "updatedAt": "2026-09-25T04:05:07.558Z",
       "messages": [
         {
-          "id": "fa91eebc-ed57-4f76-9470-13384019b26c",
+          "id": "149f3c4f-975c-41a5-9a52-e5d7a3dc5cba",
           "role": "user",
           "content": "Reply with exactly PARALLEL_B_SUCCESS. Do not use tools."
         },
         {
-          "id": "969ee49b-6c00-400f-894c-e8911c094ddc",
+          "id": "ccbed93b-c11a-4941-a2a2-85f73f7725f6",
           "role": "assistant",
           "content": "PARALLEL_B_SUCCESS"
         }
@@ -55,5 +55,5 @@
     }
   ],
   "ok": true,
-  "completedAt": "2026-09-25T03:41:04.439Z"
+  "completedAt": "2026-09-25T04:05:08.322Z"
 }

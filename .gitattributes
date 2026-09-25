@@ -2,3 +2,4 @@
 *.png binary
 *.jpg binary
 *.sse -whitespace
+docs/evidence/*.log -whitespace

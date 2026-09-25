@@ -1,0 +1,54 @@
+
+> cursor-workbench@0.1.0 test
+> node --test tests/*.test.mjs
+
+✔ persists exact public task shape and completes a real streamed tool loop (57.408718ms)
+✔ ask mode refuses model-requested mutations and command execution (25.619211ms)
+✔ approval exposes exact command and cwd, denial never spawns, and approved execution returns output (51.671064ms)
+✔ four-task limit, immediate cancellation, isolated streams and continuation (31.810205ms)
+✔ change review accepts and conflict-aware reverts without overwriting manual edits (20.883372ms)
+✔ provider failures are usable, redact credentials and allow a fresh continuation (26.795674ms)
+✔ restart marks in-flight tasks interrupted, clears approval and keeps tool history resumable (32.184652ms)
+✔ child environment strips provider keys and startup hooks without breaking normal development variables (0.27256ms)
+✔ commands time out and cap output while exposing failure without fabricating success (173.888099ms)
+✔ stopping an approved command terminates its process and leaves no delayed workspace mutation (988.09289ms)
+✔ a cancelled multi-tool turn is repaired before continuation without executing remaining tools (30.923308ms)
+✔ does not overwrite malformed persisted state (4.284124ms)
+✔ restart preserves ordinary configuration code exactly so undo still works (39.291407ms)
+✔ streaming never exposes a partial provider credential while chunks are assembling (148.127103ms)
+✔ reads text and serializes optimistic edits without losing another writer (14.904976ms)
+✔ rejects traversal, secret paths, binary and oversized reads without hiding normal source files (15.747186ms)
+✔ rejects symlink escape for reads, writes, searches and listing (2.118285ms)
+✔ requires hashes, rejects ambiguous replacements and makes undo conflict-aware (11.232953ms)
+✔ does not expose configured credentials hidden inside otherwise normal source paths (2.704574ms)
+✔ blocks credential stores but does not blacklist similarly named source modules (5.410111ms)
+✔ API never returns server credential configuration (5.541948ms)
+✔ extension uses a token-authenticated workspace API and actual VS Code commands (6.194176ms)
+✔ checked-in defaults contain no credential (4.0887ms)
+✔ assembles fragmented UTF-8 text, indexed tool calls and reasoning while streaming (28.269097ms)
+✔ surfaces HTTP and stream failures without echoing credentials (2.731898ms)
+✔ supports multiline SSE events and a finish reason without a DONE marker (0.695727ms)
+✔ aborts or times out even when a provider stream stalls (19.725719ms)
+✔ missing configuration is an explicit error and never starts mock or network work (0.240905ms)
+✔ accepts CR-only SSE framing and never executes incomplete tool-call streams (1.02551ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1706.930469
+
+> cursor-workbench@0.1.0 build
+> vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2003 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.05 kB │ gzip:   0.60 kB
+dist/assets/index-CgvS7_Xj.css   29.84 kB │ gzip:   7.07 kB
+dist/assets/index-ChvolfF8.js   437.03 kB │ gzip: 136.00 kB
+✓ built in 13.04s

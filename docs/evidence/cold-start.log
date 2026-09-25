@@ -1,0 +1,28 @@
+4317 not listening
+4318 not listening
+(node:2596740) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[2026-09-25T04:18:42.979Z] warn  Could not create socket at /mnt/c/Users/fangl/.zcode/workspace/default/cursor-workbench/.state/code/code-server-ipc.sock
+[12:19:15] [127.0.0.1][baff0e4a][ManagementConnection] Unknown reconnection token (never seen).
+[12:19:15] [127.0.0.1][659c7c75][ExtensionHostConnection] Unknown reconnection token (never seen).
+File not found: /mnt/c/Users/fangl/.zcode/workspace/default/cursor-workbench/.runtime/code-server-4.138.0-linux-amd64/lib/vscode/node_modules/vsda/rust/web/vsda_bg.wasm
+File not found: /mnt/c/Users/fangl/.zcode/workspace/default/cursor-workbench/.runtime/code-server-4.138.0-linux-amd64/lib/vscode/node_modules/vsda/rust/web/vsda.js
+Using config file /mnt/c/Users/fangl/.zcode/workspace/default/cursor-workbench/.state/code-server.yaml
+[2026-09-25T04:18:42.981Z] info  HTTP server listening on http://127.0.0.1:4318/
+[2026-09-25T04:18:42.981Z] info    - Authentication is disabled
+[2026-09-25T04:18:42.981Z] info    - Not serving HTTPS
+[2026-09-25T04:18:42.981Z] info  Session server listening on /mnt/c/Users/fangl/.zcode/workspace/default/cursor-workbench/.state/code/code-server-ipc.sock
+[12:19:14] 
+
+
+
+
+[reconnection-grace-time] No CLI argument provided, using default: 10800000ms (10800s)
+[12:19:15] [AgentHostChannel] Registered lazy IPC channel 'agentHostProxy' (upstream: /run/user/1000/vscode-ipc-9f9492c0-9e14-4c11-87e2-81e5f9ad1f6a.sock)
+[12:19:15] Extension host agent started.
+[12:21:34] [127.0.0.1][1bca49a4][ManagementConnection] New connection established.
+[12:21:34] [127.0.0.1][3be23cfe][ExtensionHostConnection] New connection established.
+[12:21:34] [127.0.0.1][3be23cfe][ExtensionHostConnection] Starting extension host process...
+[12:21:35] [127.0.0.1][3be23cfe][ExtensionHostConnection] <2640483> Launched Extension Host Process.
+[12:21:36] [127.0.0.1][3be23cfe][ExtensionHostConnection] <2640483> [reconnection-grace-time] Extension host: read VSCODE_RECONNECTION_GRACE_TIME=10800000ms (10800s)
+

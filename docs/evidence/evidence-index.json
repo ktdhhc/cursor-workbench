@@ -1,0 +1,73 @@
+{
+  "checkedAt": "2026-09-25T04:40:51.792Z",
+  "evidence": [
+    {
+      "file": "live-chat.json",
+      "ok": true,
+      "checks": [
+        "Configured deepseek-flash server is live",
+        "Real provider task completed with Chinese response"
+      ]
+    },
+    {
+      "file": "live-tools.json",
+      "ok": true,
+      "checks": [
+        "Configured deepseek-flash server is live",
+        "Approved exact test command: node --test",
+        "Real model read source, created file, requested command approval, and executed tests"
+      ]
+    },
+    {
+      "file": "live-parallel.json",
+      "ok": true,
+      "checks": [
+        "Configured deepseek-flash server is live",
+        "Two real tasks were simultaneously running and completed with isolated histories"
+      ]
+    },
+    {
+      "file": "http-security.json",
+      "ok": true,
+      "checks": [
+        {
+          "case": "denied file ../.env",
+          "status": 403
+        },
+        {
+          "case": "denied file .env",
+          "status": 403
+        },
+        {
+          "case": "denied file /etc/passwd",
+          "status": 403
+        },
+        {
+          "case": "cross-origin mutation blocked",
+          "status": 403
+        },
+        {
+          "case": "bridge token required",
+          "status": 403
+        },
+        {
+          "case": "state contains no API credential",
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "file": "credential-scan.json",
+      "ok": true
+    },
+    {
+      "file": "cold-start.json",
+      "ok": true
+    }
+  ],
+  "scope": "Evidence-file consistency only, not a substitute for requirement audit or visual review.",
+  "knownUnmet": [
+    "Requested Firecrawl research method was unavailable; official-source fallback used.",
+    "Formal visual concept-roll evidence not produced; brief-pinned/no-roll process disclosed."
+  ]
+}
