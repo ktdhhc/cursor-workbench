@@ -43,10 +43,14 @@ try {
     assert.ok(task.messages.some(m => m.role === 'assistant' && m.content.includes('对话')));
     evidence.checks.push('Real provider task completed with Chinese response');
   } else if (mode === 'tools') {
-    const created = await request('/api/tasks', { prompt: 'This is a tool integration test. 1) list files and read src/hello.js. 2) Create a new file src/agent-verification.js with exactly this content: export const agentVerified = 42; followed by a newline. 3) Run EXACTLY `node --test` using run_command, and wait for approval. 4) Summarize actual test results. Do not change any other file. Use tools, do not just explain.', mode: 'agent', title: 'Read, edit, run tests' });
+    const existingResponse = await fetch(base + '/api/file?path=src%2Fagent-verification.js');
+    const existing = existingResponse.ok ? await existingResponse.json() : null;
+    const value = existing?.content.includes('= 42;') ? 43 : 42;
+    const expected = `export const agentVerified = ${value};`;
+    const created = await request('/api/tasks', { prompt: `This is a tool integration test. 1) list files and read src/hello.js. 2) Read src/agent-verification.js if it exists, then create or modify that file to exactly this content: ${expected} followed by a newline. Use the current hash for existing files, null only for new files. 3) Run EXACTLY \`node --test\` using run_command, and wait for approval. 4) Summarize actual test results. Do not change any other file. Use tools, do not just explain.`, mode: 'agent', title: 'Read, edit, run tests' });
     const task = await wait(created.id, 'node --test');
     const file = await request('/api/file?path=src%2Fagent-verification.js');
-    assert.equal(file.content.trim(), 'export const agentVerified = 42;');
+    assert.equal(file.content.trim(), expected);
     assert.ok(task.activities.some(a => a.tool === 'read_file'));
     assert.ok(task.activities.some(a => ['write_file', 'replace_text'].includes(a.tool)));
     assert.ok(task.activities.some(a => a.tool === 'run_command'));

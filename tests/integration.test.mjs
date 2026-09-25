@@ -22,6 +22,13 @@ test('extension uses a token-authenticated workspace API and actual VS Code comm
   assert.match(source, /realpath/);
 });
 
+test('editor launcher removes API PORT override before starting code-server', async () => {
+  const source = await readFile(path.join(root, 'scripts/code-server.sh'), 'utf8');
+  assert.ok(source.indexOf('CURSOR_WORKBENCH_URL=') < source.indexOf('unset PORT'));
+  assert.ok(source.indexOf('unset PORT') < source.indexOf('exec "$ROOT/.runtime/'));
+  assert.match(source, /CODE_SERVER_PORT:-4318/);
+});
+
 test('checked-in defaults contain no credential', async () => {
   const example = await readFile(path.join(root, '.env.example'), 'utf8');
   assert.match(example, /AI_API_KEY=replace-with-your-key/);

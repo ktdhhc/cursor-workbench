@@ -182,7 +182,7 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 400; line-height: 1.4;
 .message-heading { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 550; color: #bec7b7; margin: 0 0 9px; }
 .message-user .message-heading { color: var(--secondary); }
 .message-heading time { font-size: 10px; color: var(--subtle); font-weight: 400; }
-.message-heading .copy-control { margin-left: auto; opacity: .65; }
+.message-heading .copy-control { margin-left: auto; opacity: 1; }
 .message:hover .copy-control, .message:focus-within .copy-control { opacity: 1; }
 .user-message-content { white-space: pre-wrap; padding: 13px 16px; border: 1px solid #353834; background: #232622; border-radius: 6px; color: #e5e8e1; }
 .message-placeholder { display: flex; align-items: center; gap: 7px; color: var(--secondary); font-size: 13px; }

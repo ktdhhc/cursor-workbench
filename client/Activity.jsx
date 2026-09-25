@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, Check, ChevronRight, Clock3, FileCode2, FilePenLine, FileSearch, FolderSearch, LoaderCircle, Terminal, Wrench } from 'lucide-react';
 import { formatDetail, formatTime } from './ui.jsx';
+import { activityLabel } from './activity-label.js';
 
 export function ActivityIcon({ activity, size = 15 }) {
   const tool = activity.tool || activity.type || '';
@@ -33,7 +34,7 @@ export function ActivityItem({ activity }) {
     <button type="button" className="activity-summary" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
       <ChevronRight size={13} className={expanded ? 'chevron expanded' : 'chevron'} />
       <ActivityIcon activity={activity} />
-      <span className="activity-label">{activity.label || activity.tool || activity.type || 'Agent activity'}</span>
+      <span className="activity-label">{activityLabel(activity)}</span>
       <ActivityStatus status={activity.status} />
     </button>
     {expanded && <div className="activity-detail">
@@ -51,7 +52,7 @@ export function LiveActivity({ task, onShowActivity }) {
   if (!last) return null;
   return <button type="button" className="live-activity" onClick={onShowActivity}>
     <ActivityIcon activity={last} size={14} />
-    <span>{last.label || last.tool || last.type || 'Agent activity'}</span>
+    <span>{activityLabel(last)}</span>
     <ActivityStatus status={last.status} />
     <ChevronRight size={13} />
   </button>;

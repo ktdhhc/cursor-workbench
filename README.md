@@ -42,7 +42,7 @@ node scripts/smoke-live.mjs parallel
 node scripts/smoke-live.mjs tools
 ```
 
-`smoke-live` 使用真实已配置模型，会产生少量接口调用；`tools` 创建 `workspace/src/agent-verification.js` 并仅自动批准精确匹配的 `node --test`。测试若同名文件已存在，建议在新工作区运行。普通用户命令没有自动批准。
+`smoke-live` 使用真实已配置模型，会产生少量接口调用；`tools` 创建或修改 `workspace/src/agent-verification.js`（在 42/43 两个验证值间切换），并仅自动批准精确匹配的 `node --test`。它只适用于本项目自带的验证工作区，不要对不熟悉的项目直接运行。普通用户命令没有自动批准。
 
 前端开发：WSL 中 `npm run dev`（4319，API与编辑器代理到4317）；服务端 `npm start`，编辑器 `bash scripts/code-server.sh`。生产单入口使用 `npm run launch`。
 
