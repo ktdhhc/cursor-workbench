@@ -19,20 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This project's own code is MIT-licensed. It builds on separately licensed
-open-source components that are fetched at setup time and are not
-redistributed in this repository:
-
-- Microsoft VS Code (Code-OSS), MIT License — cloned from
-  https://github.com/microsoft/vscode during `npm run setup`; it retains its
-  own LICENSE.txt and ThirdPartyNotices.txt.
-- code-server by Coder, MIT License — downloaded from its official release
-  during `npm run setup`.
-
-See THIRD_PARTY_NOTICES.md and UPSTREAM.json for exact versions, commits,
-and attribution. This project is an independent local development tool and
-is not affiliated with, endorsed by, or derived from the proprietary Cursor
-product.

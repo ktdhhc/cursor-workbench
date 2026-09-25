@@ -17,3 +17,8 @@ React, React DOM, Vite, Express, http-proxy, lucide-react, react-markdown and re
 ## Research-only media
 
 The Cursor screenshot under docs/research is an attributed official product reference, not shipped in the web app. Origin and retrieval context are in docs/research/SOURCES.md. Screenshots under docs/evidence are captures of this local running implementation.
+
+## This repository's own code
+
+The workbench application code (React client, Express server, agent engine, VS Code extension) is MIT-licensed — see LICENSE. It builds on separately licensed components fetched at setup time and not redistributed here: Microsoft VS Code (Code-OSS, MIT, cloned from github.com/microsoft/vscode) and code-server by Coder (MIT, official release download). This project is an independent local development tool and is not affiliated with, endorsed by, or derived from the proprietary Cursor product.
+
