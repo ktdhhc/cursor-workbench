@@ -1,0 +1,27 @@
+{
+  "workbench.colorTheme": "Dark Modern",
+  "workbench.startupEditor": "none",
+  "workbench.activityBar.location": "default",
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
+  "window.menuBarVisibility": "compact",
+  "editor.fontSize": 14,
+  "editor.lineHeight": 22,
+  "editor.minimap.enabled": false,
+  "editor.wordWrap": "on",
+  "workbench.editor.enablePreview": false,
+  "telemetry.telemetryLevel": "off",
+  "security.workspace.trust.enabled": false,
+  "git.enabled": false,
+  "chat.disableAIFeatures": true,
+  "files.autoSave": "off",
+  "workbench.colorCustomizations": {
+    "editor.background": "#191a1b",
+    "sideBar.background": "#161718",
+    "activityBar.background": "#161718",
+    "titleBar.activeBackground": "#161718",
+    "statusBar.background": "#161718",
+    "tab.activeBackground": "#191a1b",
+    "tab.inactiveBackground": "#161718",
+    "editorGroupHeader.tabsBackground": "#161718"
+  }
+}

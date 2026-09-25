@@ -1,0 +1,16 @@
+{
+  "name": "cursor-workbench-bridge",
+  "displayName": "Cursor Workbench Bridge",
+  "publisher": "local-workbench",
+  "version": "0.1.0",
+  "engines": {"vscode": "^1.100.0"},
+  "main": "./extension.cjs",
+  "activationEvents": ["onStartupFinished"],
+  "extensionKind": ["workspace"],
+  "contributes": {
+    "commands": [
+      {"command": "cursorWorkbench.openAgents", "title": "Cursor Workbench: Open Agents Window"},
+      {"command": "cursorWorkbench.showContext", "title": "Cursor Workbench: Show Agent Connection"}
+    ]
+  }
+}
