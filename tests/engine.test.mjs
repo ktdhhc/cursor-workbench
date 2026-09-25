@@ -55,7 +55,7 @@ test('persists exact public task shape and completes a real streamed tool loop',
   const created = await engine.createTask({ prompt: 'Update the file', mode: 'agent', title: 'Real edit' });
   const done = await waitFor(engine, created.id);
   assert.equal(done.status, 'completed', done.error);
-  assert.deepEqual(Object.keys(done).sort(), ['id', 'title', 'prompt', 'status', 'createdAt', 'updatedAt', 'messages', 'activities', 'changes', 'approval', 'error'].sort());
+  assert.deepEqual(Object.keys(done).sort(), ['id', 'title', 'prompt', 'status', 'createdAt', 'updatedAt', 'messages', 'activities', 'changes', 'approval', 'error', 'providerId', 'model'].sort());
   assert.deepEqual(done.messages.map(x => x.role), ['user', 'assistant']);
   assert.ok(done.messages.every(x => Object.keys(x).sort().join() === 'content,id,role'));
   assert.equal(done.messages.at(-1).content, 'Updated hello.txt.');

@@ -210,9 +210,9 @@ export class AgentEngine {
   #options;
   #stateFile;
 
-  constructor({ workspace, stateDir, baseUrl, model, apiKey, onChange, fetchImpl }) {
+  constructor({ workspace, stateDir, baseUrl, model, apiKey, onChange, fetchImpl, providerResolver } = {}) {
     if (!stateDir) throw fileError('A stateDir outside the workspace is required.');
-    this.#options = { workspace, stateDir: path.resolve(stateDir), baseUrl, model, apiKey: apiKey || '', onChange, fetchImpl };
+    this.#options = { workspace, stateDir: path.resolve(stateDir), baseUrl, model, apiKey: apiKey || '', onChange, fetchImpl, providerResolver };
     this.files = new WorkspaceFiles({ workspace, secrets: [apiKey] });
   }
 
@@ -260,22 +260,26 @@ export class AgentEngine {
   }
 
   getTasks() {
-    return [...this.#records.values()].map(record => this.#publicTask(record.task)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...this.#records.values()].map(record => this.#publicTask(record)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async createTask({ prompt, mode = 'agent', title } = {}) {
+  async createTask({ prompt, mode = 'agent', title, providerId, modelId } = {}) {
     this.#assertReady();
     this.#validateText(prompt, 'prompt');
     if (!['agent', 'ask'].includes(mode)) throw fileError('mode must be agent or ask.');
     if (title !== undefined && (typeof title !== 'string' || title.length > 200)) throw fileError('title must be text of at most 200 characters.');
+    if (providerId !== undefined && (typeof providerId !== 'string' || !providerId.trim())) throw fileError('providerId must be a non-empty string.');
+    if (modelId !== undefined && (typeof modelId !== 'string' || !modelId.trim())) throw fileError('modelId must be a non-empty string.');
+    if (providerId !== undefined) this.#options.providerResolver?.(providerId, modelId); // fail fast on a broken selection
     this.#assertCapacity();
     const stamp = now();
     const task = { id: id(), title: title?.trim() || prompt.trim().slice(0, 80), prompt, status: 'running', createdAt: stamp, updatedAt: stamp,
+      providerId: providerId ?? null, model: modelId ?? null,
       messages: [{ id: id(), role: 'user', content: prompt }], activities: [], changes: [], approval: null, error: null };
     const record = { task, mode, history: [{ role: 'user', content: prompt }] };
     this.#records.set(task.id, record);
     await this.#launch(record);
-    return this.#publicTask(task);
+    return this.#publicTask(record);
   }
 
   async continueTask(taskId, content) {
@@ -350,32 +354,45 @@ export class AgentEngine {
   }
   #assertCapacity() { if (this.#runs.size >= MAX_CONCURRENT) throw fileError('At most four tasks can run at once. Stop a task or wait for it to finish.', 429); }
   #validateText(value, name) { if (typeof value !== 'string' || !value.trim() || value.length > 32 * 1024) throw fileError(`${name} must contain 1–32768 characters.`); }
-  #redact(value) { return redactSecrets(value, [this.#options.apiKey]); }
-  #hideKey(value) {
-    const key = this.#options.apiKey;
+  #providerKey(record) { return record.provider?.apiKey ?? this.#options.apiKey; }
+  /** Resolve the provider for a task at run time; falls back to the server-default options. */
+  #providerFor(record) {
+    const { providerId } = record.task;
+    if (providerId) {
+      const resolved = this.#options.providerResolver?.(providerId, record.task.model);
+      if (resolved) {
+        record.provider = { baseUrl: resolved.baseUrl, model: resolved.model, apiKey: resolved.apiKey };
+        return record.provider;
+      }
+    }
+    return { baseUrl: this.#options.baseUrl, model: this.#options.model, apiKey: this.#options.apiKey };
+  }
+  #redact(value, key = this.#options.apiKey) { return redactSecrets(value, [key].filter(Boolean)); }
+  #hideKey(value, key = this.#options.apiKey) {
     return key ? value.split(key).join('[REDACTED]') : value;
   }
-  #streamText(value) {
+  #streamText(value, key = this.#options.apiKey) {
     // Withhold a trailing key prefix until the next chunk disambiguates it.
     // Otherwise a credential split across SSE/stdio chunks would briefly leak.
-    let safe = this.#hideKey(value);
-    const key = this.#options.apiKey;
+    let safe = this.#hideKey(value, key);
     for (let length = Math.min((key?.length || 0) - 1, safe.length); length > 0; length--) {
       if (safe.endsWith(key.slice(0, length))) return safe.slice(0, -length);
     }
     return safe;
   }
-  #sanitize(value) {
+  #sanitize(value, key = this.#options.apiKey) {
     // Only exact configured credentials are replaced in code and persisted snapshots.
     // Heuristic password/token redaction would corrupt ordinary source and undo hashes.
-    if (typeof value === 'string') return this.#hideKey(value);
-    if (Array.isArray(value)) return value.map(item => this.#sanitize(item));
-    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.#sanitize(item)]));
+    if (typeof value === 'string') return this.#hideKey(value, key);
+    if (Array.isArray(value)) return value.map(item => this.#sanitize(item, key));
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([entryKey, item]) => [entryKey, this.#sanitize(item, key)]));
     return value;
   }
-  #publicTask(task) {
+  #publicTask(record) {
+    const task = record.task ?? record;
     const { id, title, prompt, status, createdAt, updatedAt, messages, activities, changes, approval, error } = task;
-    return this.#sanitize({ id, title, prompt, status, createdAt, updatedAt, messages, activities, changes, approval, error });
+    return this.#sanitize({ id, title, prompt, status, createdAt, updatedAt, messages, activities, changes, approval, error,
+      providerId: task.providerId ?? null, model: task.model ?? this.#options.model }, this.#providerKey(record));
   }
   #emit() {
     try {
@@ -390,7 +407,8 @@ export class AgentEngine {
   }
   #save() {
     const write = async () => {
-      const data = JSON.stringify(this.#sanitize({ version: 1, workspace: this.files.root, tasks: [...this.#records.values()] }));
+      const data = JSON.stringify({ version: 1, workspace: this.files.root,
+        tasks: [...this.#records.values()].map(record => this.#sanitize(record, this.#providerKey(record))) });
       const temp = `${this.#stateFile}.${id()}.tmp`;
       try {
         const handle = await open(temp, 'wx', 0o600);
@@ -424,6 +442,15 @@ export class AgentEngine {
   async #run(record, run) {
     const task = record.task;
     const signal = run.controller.signal;
+    let provider;
+    try {
+      provider = this.#providerFor(record);
+    } catch (error) {
+      task.status = 'error';
+      task.error = this.#redact(error.message, this.#options.apiKey);
+      this.#emit();
+      return;
+    }
     try {
       for (let turn = 0; turn < MAX_TURNS; turn++) {
         signal.throwIfAborted();
@@ -431,23 +458,23 @@ export class AgentEngine {
         let text = '';
         let lastNotify = 0;
         let lastSave = Date.now();
-        const { message } = await streamChatCompletion({ ...this.#options,
+        const { message } = await streamChatCompletion({ ...this.#options, baseUrl: provider.baseUrl, model: provider.model, apiKey: provider.apiKey,
           messages: boundedContext(record.history, record.mode), tools: record.mode === 'ask' ? READ_TOOLS : AGENT_TOOLS, signal,
           onDelta: async delta => {
             signal.throwIfAborted();
             if (typeof delta.content !== 'string' || !delta.content) return;
             text += delta.content;
             if (!visible) { visible = { id: id(), role: 'assistant', content: '' }; task.messages.push(visible); }
-            visible.content = this.#streamText(text);
+            visible.content = this.#streamText(text, provider.apiKey);
             task.updatedAt = now();
             if (Date.now() - lastNotify > 40) { lastNotify = Date.now(); this.#emit(); }
             if (Date.now() - lastSave > 500) { lastSave = Date.now(); await this.#save(); }
           },
         });
         signal.throwIfAborted();
-        record.history.push(this.#sanitize(message));
-        if (visible) visible.content = this.#hideKey(message.content || '');
-        else if (message.content) task.messages.push({ id: id(), role: 'assistant', content: this.#hideKey(message.content) });
+        record.history.push(this.#sanitize(message, provider.apiKey));
+        if (visible) visible.content = this.#hideKey(message.content || '', provider.apiKey);
+        else if (message.content) task.messages.push({ id: id(), role: 'assistant', content: this.#hideKey(message.content, provider.apiKey) });
         await this.#checkpoint(record);
         if (!message.tool_calls?.length) {
           task.status = 'completed';
@@ -457,7 +484,7 @@ export class AgentEngine {
         for (const call of message.tool_calls) {
           signal.throwIfAborted();
           const output = await this.#executeTool(record, run, call);
-          record.history.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(this.#sanitize(output)) });
+          record.history.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(this.#sanitize(output, provider.apiKey)) });
           await this.#checkpoint(record);
         }
         if (turn === MAX_TURNS - 1) throw fileError('Reached the 50-turn limit. Review progress and continue the task to proceed.', 429);
@@ -468,7 +495,7 @@ export class AgentEngine {
         task.error = null;
       } else {
         task.status = 'error';
-        task.error = this.#redact(error?.message || String(error));
+        task.error = this.#redact(error?.message || String(error), provider.apiKey);
       }
       repairToolHistory(record.history, task.error || 'Task was cancelled; this tool was not completed.');
     } finally {
@@ -534,7 +561,8 @@ export class AgentEngine {
 
   async #command(record, run, args, activity) {
     if (typeof args.command !== 'string' || !args.command.trim() || args.command.length > 16 * 1024 || args.command.includes('\0')) throw fileError('command must contain 1–16384 characters without null bytes.');
-    if (this.#options.apiKey && args.command.includes(this.#options.apiKey)) throw fileError('Commands must not contain provider credentials.', 403);
+    const providerKey = this.#providerKey(record);
+    if (providerKey && args.command.includes(providerKey)) throw fileError('Commands must not contain provider credentials.', 403);
     const cwdValue = args.cwd ?? '.';
     const cwd = await this.files.resolvePath(cwdValue, { allowRoot: true });
     if (!(await lstat(cwd.absolute)).isDirectory()) throw fileError('Command cwd must be a directory.');
@@ -561,8 +589,8 @@ export class AgentEngine {
     await this.#checkpoint(record);
     // Approval can take minutes; validate cwd again immediately before spawning.
     const currentCwd = await this.files.resolvePath(cwdValue, { allowRoot: true });
-    return executeCommand({ command: args.command, cwd: currentCwd.absolute, timeoutMs, signal, secrets: [this.#options.apiKey],
-      onOutput: text => { activity.output = this.#redact(this.#streamText(text)); task.updatedAt = now(); this.#emit(); },
+    return executeCommand({ command: args.command, cwd: currentCwd.absolute, timeoutMs, signal, secrets: [providerKey],
+      onOutput: text => { activity.output = this.#redact(this.#streamText(text, providerKey), providerKey); task.updatedAt = now(); this.#emit(); },
     });
   }
 }

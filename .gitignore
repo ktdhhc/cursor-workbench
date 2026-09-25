@@ -8,3 +8,4 @@ dist/
 .logs/
 vendor/
 workspace/.agent-checkpoints/
+vendor/zcode-reference/

@@ -26,7 +26,7 @@ export function Approval({ task, pending, onApprove }) {
   </section>;
 }
 
-export default function Conversation({ task, selectedId, config, draft, onDraft, taskMode, onMode, inputRef, pending, onSubmit, onStop, onRetry, onApprove, onOpenFile, onShowActivity, onShowChanges, ready }) {
+export default function Conversation({ task, selectedId, config, draft, onDraft, taskMode, onMode, inputRef, pending, onSubmit, onStop, onRetry, onApprove, onOpenFile, onShowActivity, onShowChanges, ready, providers, onManage, onSelectModel }) {
   const t = useT();
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
@@ -53,7 +53,7 @@ export default function Conversation({ task, selectedId, config, draft, onDraft,
     return () => observer.disconnect();
   }, [selectedId, Boolean(task)]);
 
-  const composer = <Composer task={task} value={draft} onChange={onDraft} mode={taskMode} onModeChange={onMode} config={config} pending={pending} onSubmit={onSubmit} onStop={onStop} inputRef={inputRef} welcome={!selectedId} ready={ready && (!selectedId || Boolean(task))} />;
+  const composer = <Composer task={task} value={draft} onChange={onDraft} mode={taskMode} onModeChange={onMode} config={config} pending={pending} onSubmit={onSubmit} onStop={onStop} inputRef={inputRef} welcome={!selectedId} ready={ready && (!selectedId || Boolean(task))} providers={providers} onManage={onManage} onSelectModel={onSelectModel} />;
   if (!selectedId) return <div className="new-task-view">
     <div className="welcome-content">
       <div className="welcome-mark" aria-hidden="true"><Sparkles size={27} strokeWidth={1.35} /></div>
@@ -80,7 +80,7 @@ export default function Conversation({ task, selectedId, config, draft, onDraft,
       setShowJump(!pinned.current);
     }} aria-label={t('conv.conversation')} tabIndex={0}>
       <div className="transcript" ref={contentRef}>
-        <div className="conversation-start"><span>{t('conv.started', { date: task.createdAt ? new Date(task.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '' })}</span><span>{config?.model}</span></div>
+        <div className="conversation-start"><span>{t('conv.started', { date: task.createdAt ? new Date(task.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '' })}</span><span>{task.model || config?.model}</span></div>
         {messages.length === 0 && <p className="muted transcript-empty">{t('conv.noMessages')}</p>}
         {messages.map((message, index) => <article key={message.id || `${message.role}-${index}`} className={`message message-${message.role}`} aria-label={message.role === 'user' ? t('conv.you') : t('conv.agent')}>
           <div className="message-heading">{message.role === 'assistant' && <Sparkles size={14} aria-hidden="true" />}<span>{message.role === 'user' ? t('conv.you') : t('conv.agent')}</span>{message.createdAt && <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>}{message.role === 'assistant' && message.content && <CopyButton text={message.content} label={t('conv.copyResponse')} />}</div>

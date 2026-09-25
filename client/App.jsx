@@ -4,7 +4,8 @@ import { useLangControls, useT } from './i18n.jsx';
 import Artifacts from './Artifacts.jsx';
 import Conversation from './Conversation.jsx';
 import Sidebar from './Sidebar.jsx';
-import { isActive, readPreference, request, savePreference, taskPath, taskTitle, useWorkbench } from './api.js';
+import { isActive, readPreference, request, savePreference, taskPath, taskTitle, useProviders, useWorkbench } from './api.js';
+import ProviderSettings from './ProviderSettings.jsx';
 import { initialTheme } from './i18n.jsx';
 import { ErrorNotice, IconButton, Status, useMediaQuery } from './ui.jsx';
 
@@ -68,6 +69,8 @@ function getEditorUrl(config) {
 export default function App() {
   const t = useT();
   const { lang, setLang } = useLangControls();
+  const { providers, refresh: refreshProviders } = useProviders();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { state, connection, error: stateError, refreshing, refresh, reconnect } = useWorkbench();
   const { run, pending, errors, dismiss } = useActions();
   const [windowMode, setWindowMode] = useState(() => readPreference('windowMode', 'agents') === 'editor' ? 'editor' : 'agents');
@@ -284,7 +287,7 @@ export default function App() {
     <div className="global-notices" inert={modalOpen}>
       {(connection === 'reconnecting' || connection === 'offline') && <div className="network-notice" role="alert"><WifiOff size={15} /><span>{connection === 'offline' ? t('app.offline') : t('app.reconnecting')}</span><button type="button" className="text-button" onClick={reconnect}>{t('app.reconnect')}</button></div>}
       {stateError && <ErrorNotice action={<button type="button" className="text-button" onClick={reconnect}>Reconnect</button>}>{stateError}</ErrorNotice>}
-      {state && !state.config.configured && <div className="configuration-notice" role="alert"><ShieldAlert size={15} /><span>{t('app.modelNotConfigured')}</span></div>}
+      {state && !state.config.configured && providers && !providers.providers?.some(p => p.apiKeyConfigured) && <div className="configuration-notice" role="alert"><ShieldAlert size={15} /><span>{t('app.modelNotConfigured')}</span></div>}
       {errors.map((item) => <ErrorNotice key={item.id} onDismiss={() => dismiss(item.id)}><strong>{item.label}</strong><p>{item.message}</p></ErrorNotice>)}
       {notice && <div className="action-notice" role="status"><CheckCircle2 size={14} /><span>{notice}</span><IconButton label="Dismiss notification" onClick={() => setNotice('')}><X size={14} /></IconButton></div>}
     </div>
@@ -297,7 +300,7 @@ export default function App() {
             <div className="conversation-title">{!sidebarOpen && <IconButton label="Show task sidebar" onClick={toggleSidebar}><PanelLeft size={16} /></IconButton>}<span className="conversation-title-text">{task ? taskTitle(task) : selectedId ? 'Conversation' : 'New agent'}</span>{task && <Status status={task.status} />}</div>
             <div className="conversation-header-actions"><IconButton label="Refresh workspace state" disabled={refreshing} onClick={() => refresh()}><RefreshCw size={14} className={refreshing ? 'spin' : undefined} /></IconButton><IconButton label={artifactsOpen ? 'Hide task details' : 'Show changes and activity'} aria-expanded={artifactsOpen} onClick={() => artifactsOpen ? closeArtifacts() : openArtifacts(artifactsTab)}><PanelRight size={16} /></IconButton></div>
           </div>
-          <Conversation task={task} selectedId={selectedId} config={state?.config} draft={drafts[draftKey] || ''} onDraft={updateDraft} taskMode={taskMode} onMode={setNewMode} inputRef={inputRef} pending={pending} onSubmit={submitMessage} onStop={stopTask} onRetry={retryTask} onApprove={approveTask} onOpenFile={openFile} onShowActivity={() => openArtifacts('activity')} onShowChanges={() => openArtifacts('changes')} ready={Boolean(state)} />
+          <Conversation task={task} selectedId={selectedId} config={state?.config} draft={drafts[draftKey] || ''} onDraft={updateDraft} taskMode={taskMode} onMode={setNewMode} inputRef={inputRef} pending={pending} onSubmit={submitMessage} onStop={stopTask} onRetry={retryTask} onApprove={approveTask} onOpenFile={openFile} onShowActivity={() => openArtifacts('activity')} onShowChanges={() => openArtifacts('changes')} ready={Boolean(state)} providers={providers} onManage={() => setSettingsOpen(true)} onSelectModel={(providerId, modelId) => { void run('model', t('providers.switchFailed'), async (signal) => { await request('/api/settings/model', { body: { providerId, modelId }, signal }); await refreshProviders(); }); }} />
         </main>
         <Artifacts task={task} tab={artifactsTab} onTab={setArtifactsTab} open={artifactsOpen && windowMode === 'agents'} drawer={artifactsDrawer} onClose={closeArtifacts} pending={pending} onChangeAction={reviewChange} onOpenFile={openFile} />
       </section>
@@ -318,6 +321,7 @@ export default function App() {
           </ul>
         </div> : <div className="editor-unavailable"><Code2 size={30} strokeWidth={1.4} /><h2>{state ? t('app.editorUnavailable') : t('app.connecting')}</h2><p>{state ? t('app.editorUnavailableBody') : t('app.editorReadyHint')}</p><button className="secondary-button" type="button" onClick={reconnect}><RefreshCw size={14} />{t('app.reconnect')}</button></div>}
       </section>
+      <ProviderSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} providers={providers} refresh={refreshProviders} />
     </div>
   </div>;
 }

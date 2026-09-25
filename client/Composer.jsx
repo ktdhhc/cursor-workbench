@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 import { ArrowUp, ChevronDown, CornerDownLeft, LoaderCircle, MessageSquare, Sparkles, Square } from 'lucide-react';
 import { isActive } from './api.js';
 import { useT } from './i18n.jsx';
+import { ModelPicker } from './ProviderSettings.jsx';
 
-export default function Composer({ task, value, onChange, mode, onModeChange, config, pending, onSubmit, onStop, inputRef, welcome = false, ready }) {
+export default function Composer({ task, value, onChange, mode, onModeChange, config, pending, onSubmit, onStop, inputRef, welcome = false, ready, providers, onManage, onSelectModel }) {
   const t = useT();
   const composing = useRef(false);
   const active = isActive(task);
@@ -46,7 +47,7 @@ export default function Composer({ task, value, onChange, mode, onModeChange, co
             <select aria-label={t('composer.taskMode')} value={mode} onChange={(event) => onModeChange(event.target.value)} disabled={submitting}><option value="agent">{t('composer.modeAgent')}</option><option value="ask">{t('composer.modeAsk')}</option></select><ChevronDown size={12} />
           </label> : <span className="composer-mode" title={t('composer.followupHint')}>{mode === 'ask' ? <MessageSquare size={13} /> : <Sparkles size={13} />}<span>{mode === 'ask' ? t('composer.modeAsk') : mode === 'agent' ? t('composer.modeAgent') : t('composer.modeFollowup')}</span></span>}
           <span className="composer-divider" />
-          <span className="model-label" title={`${t('composer.modelPrefix')}${config?.baseUrl ? ` · ${config.baseUrl}` : ''}`}>{config?.model || t('composer.modelLoading')}</span>
+          {providers ? <ModelPicker providers={providers} onManage={onManage} onSelect={onSelectModel} /> : <span className="model-label">{t('composer.modelLoading')}</span>}
         </div>
         {active ? <button type="button" className="stop-button" onClick={onStop} disabled={stopping} aria-label={t('composer.stopAgent')} title={t('composer.stopThis')}>{stopping ? <LoaderCircle size={13} className="spin" /> : <Square size={11} fill="currentColor" />}<span>{stopping ? t('composer.stopping') : t('composer.stop')}</span></button>
           : <button type="submit" className="send-button" disabled={disabled} aria-label={task ? t('composer.sendFollowup') : t('composer.startAgent')} title={task ? t('composer.followupHintKey') : t('composer.startHint')}>{submitting ? <LoaderCircle size={16} className="spin" /> : <ArrowUp size={17} />}</button>}

@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { AgentEngine } from './engine.mjs';
+import { ProviderRegistry } from './providers.mjs';
+import { streamChatCompletion } from './provider.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.PORT || 4317);
@@ -34,8 +36,20 @@ const config = {
   editorEnabled,
   editorUrl: editorEnabled ? `/editor/?folder=${encodeURIComponent(workspace)}` : null,
 };
-const engine = new AgentEngine({ workspace, stateDir: path.join(stateDir, 'agents'), baseUrl: config.baseUrl, model: config.model, apiKey: process.env.AI_API_KEY, onChange: broadcast });
+const engine = new AgentEngine({ workspace, stateDir: path.join(stateDir, 'agents'), baseUrl: config.baseUrl, model: config.model, apiKey: process.env.AI_API_KEY, onChange: broadcast,
+  providerResolver: (providerId, modelId) => {
+    const resolved = registry.resolve(providerId, modelId);
+    return resolved ? { baseUrl: resolved.baseUrl, model: resolved.modelId, apiKey: resolved.apiKey } : null;
+  },
+});
 await engine.init();
+const registry = await new ProviderRegistry({
+  builtinPath: path.join(root, 'server', 'builtin-providers.json'),
+  personalPath: path.join(stateDir, 'providers.json'),
+  credentialsPath: path.join(stateDir, 'provider-credentials.json'),
+  envDefaults: { baseUrl: config.baseUrl, model: config.model, apiKey: process.env.AI_API_KEY },
+  onChange: broadcast,
+}).init();
 function state() {
   return { config, tasks: engine.getTasks(), activeFile, bridgeConnected: Date.now() - lastBridgeSeen < 6000, requestedMode };
 }
@@ -82,7 +96,15 @@ app.get('/api/events', (req, res) => {
 });
 app.get('/api/files', async (_req, res) => res.json(await engine.files.listFiles()));
 app.get('/api/file', async (req, res) => res.json(await engine.files.readFile(req.query.path)));
-app.post('/api/tasks', async (req, res) => res.status(201).json(await engine.createTask(req.body)));
+app.post('/api/tasks', async (req, res) => {
+  const { providerId, modelId } = req.body ?? {};
+  if (providerId === undefined && registry.publicState().defaultModelSelection) {
+    const selection = registry.publicState().defaultModelSelection;
+    res.status(201).json(await engine.createTask({ ...req.body, providerId: selection.providerId, modelId: selection.modelId }));
+    return;
+  }
+  res.status(201).json(await engine.createTask(req.body));
+});
 app.post('/api/tasks/:id/messages', async (req, res) => res.json(await engine.continueTask(req.params.id, req.body.content)));
 app.post('/api/tasks/:id/stop', async (req, res) => res.json(await engine.stopTask(req.params.id)));
 app.post('/api/tasks/:id/approval', async (req, res) => {
@@ -90,6 +112,47 @@ app.post('/api/tasks/:id/approval', async (req, res) => {
   res.json(await engine.approveTask(req.params.id, req.body.approved));
 });
 app.post('/api/tasks/:id/changes/:changeId', async (req, res) => res.json(await engine.resolveChange(req.params.id, req.params.changeId, req.body.action)));
+app.get('/api/providers', (_req, res) => res.json(registry.publicState()));
+app.post('/api/providers', async (req, res) => {
+  const { templateId, name, baseUrl, apiKey, modelIds, enabled } = req.body ?? {};
+  await registry.createPersonalProvider({ templateId, name, baseUrl, apiKey, modelIds, enabled });
+  broadcast();
+  res.status(201).json(registry.publicState());
+});
+app.patch('/api/providers/:id', async (req, res) => {
+  await registry.updatePersonalProvider(req.params.id, req.body ?? {});
+  broadcast();
+  res.json(registry.publicState());
+});
+app.delete('/api/providers/:id', async (req, res) => {
+  await registry.deletePersonalProvider(req.params.id);
+  broadcast();
+  res.json(registry.publicState());
+});
+app.put('/api/providers/:id/apiKey', async (req, res) => {
+  await registry.setApiKey(req.params.id, req.body?.apiKey);
+  broadcast();
+  res.json(registry.publicState());
+});
+app.post('/api/providers/:id/models', async (req, res) => {
+  await registry.addPersonalModel(req.params.id, req.body?.modelId);
+  broadcast();
+  res.json(registry.publicState());
+});
+app.delete('/api/providers/:id/models/:modelId', async (req, res) => {
+  await registry.deletePersonalModel(req.params.id, req.params.modelId);
+  broadcast();
+  res.json(registry.publicState());
+});
+app.post('/api/providers/:id/test', async (req, res) => {
+  res.json(await registry.testConnectivity({ providerId: req.params.id, modelId: req.body?.modelId }, { streamChatCompletion }));
+});
+app.post('/api/settings/model', async (req, res) => {
+  if (typeof req.body?.providerId !== 'string' || typeof req.body?.modelId !== 'string') return res.status(400).json({ error: 'providerId and modelId are required.' });
+  await registry.setDefaultModelSelection(req.body);
+  broadcast();
+  res.json(registry.publicState());
+});
 app.post('/api/editor/open', async (req, res) => {
   const file = await engine.files.readFile(req.body.path);
   if (commandQueue.length >= 50) return res.status(503).json({ error: 'Editor command queue is full. Check the bridge connection.' });

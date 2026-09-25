@@ -137,6 +137,30 @@ export function useWorkbench() {
 }
 
 export const taskPath = (id) => `/api/tasks/${encodeURIComponent(id)}`;
+
+/** Providers live outside /api/state so the model picker can refresh independently. */
+export function useProviders() {
+  const [providers, setProviders] = useState(null);
+  const [error, setError] = useState(null);
+  const refresh = useCallback(async () => {
+    try {
+      setProviders(await request('/api/providers'));
+      setError(null);
+    } catch (failure) {
+      setError(failure.errorKey || failure.message);
+    }
+  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+  return { providers, error, refresh };
+}
+
+export function activeModelLabel(providers, fallback) {
+  const selection = providers?.defaultModelSelection;
+  if (!selection) return fallback || null;
+  const provider = providers.providers?.find((item) => item.id === selection.providerId);
+  if (!provider) return selection.modelId;
+  return `${selection.modelId} · ${provider.name}`;
+}
 export const isActive = (task) => task?.status === 'running' || task?.status === 'waiting_approval';
 
 export function taskTitle(task) {
