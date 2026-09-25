@@ -446,3 +446,16 @@ test('ask_user blocks without guessing and resumes with the explicit answer', as
   assert.equal(done.interaction, null);
   assert.equal(done.messages.at(-1).content, 'Using pnpm.');
 });
+
+test('model metadata bounds the context budget and forwards output limits', async t => {
+  const bodies = [];
+  const { engine } = await fixture(t, async (_url, request) => {
+    bodies.push(JSON.parse(request.body));
+    return response({ content: 'ok' });
+  }, { providerResolver: () => ({ providerId: 'p', baseUrl: provider.baseUrl, model: 'm', apiKey: provider.apiKey, contextWindow: 32000, maxOutputTokens: 1234 }) });
+  const created = await engine.createTask({ prompt: 'hi' });
+  const done = await waitFor(engine, created.id);
+  assert.equal(done.status, 'completed', done.error);
+  assert.equal(bodies[0].max_tokens, 1234);
+  assert.equal(done.context.limitBytes, 96000);
+});

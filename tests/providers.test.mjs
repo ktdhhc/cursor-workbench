@@ -158,9 +158,12 @@ test('public state exposes model capabilities while preserving modelIds and secr
   const deepseek = state.providers.find(item => item.id === 'deepseek');
   assert.deepEqual(deepseek.modelIds, ['deepseek-chat', 'deepseek-reasoner', 'deepseek-flash']);
   assert.deepEqual(deepseek.models, [
-    { id: 'deepseek-chat', reasoningLevels: ['default'], defaultReasoningLevel: 'default' },
-    { id: 'deepseek-reasoner', reasoningLevels: ['default'], defaultReasoningLevel: 'default' },
-    { id: 'deepseek-flash', reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default' },
+    { id: 'deepseek-chat', reasoningLevels: ['default'], defaultReasoningLevel: 'default', contextWindow: null, maxOutputTokens: null,
+      input: { text: true, image: false, video: false, pdf: false }, capabilities: { structuredOutput: false, nativeWebSearch: false, midConversationSystem: false }, enabled: true },
+    { id: 'deepseek-reasoner', reasoningLevels: ['default'], defaultReasoningLevel: 'default', contextWindow: null, maxOutputTokens: null,
+      input: { text: true, image: false, video: false, pdf: false }, capabilities: { structuredOutput: false, nativeWebSearch: false, midConversationSystem: false }, enabled: true },
+    { id: 'deepseek-flash', reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default', contextWindow: null, maxOutputTokens: null,
+      input: { text: true, image: false, video: false, pdf: false }, capabilities: { structuredOutput: false, nativeWebSearch: false, midConversationSystem: false }, enabled: true },
   ]);
   assert.equal(JSON.stringify(state).includes('sk-template'), false);
   const secrets = registry.secretValues();
@@ -220,10 +223,53 @@ test('legacy personal configs load and persist model options when models change'
   await writeFile(credentialsPath, JSON.stringify({ legacy: 'sk-legacy' }), 'utf8');
   const registry = await new ProviderRegistry({ builtinPath, personalPath, credentialsPath, envDefaults: {} }).init();
   assert.deepEqual(registry.publicState().providers[0].models, [
-    { id: 'legacy-model', reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default' },
+    { id: 'legacy-model', reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default',
+      contextWindow: null, maxOutputTokens: null,
+      input: { text: true, image: false, video: false, pdf: false },
+      capabilities: { structuredOutput: false, nativeWebSearch: false, midConversationSystem: false },
+      enabled: true },
   ]);
   await registry.addPersonalModel('legacy', 'legacy-next');
   const persisted = JSON.parse(await readFile(personalPath, 'utf8'));
   assert.deepEqual(persisted.config.providers.legacy.modelOptions['legacy-next'].reasoningLevels, ['default', 'low', 'medium', 'high']);
   assert.equal(JSON.stringify(persisted).includes('sk-legacy'), false);
+});
+
+test('model metadata is editable per model and a disabled model is rejected at resolve time', async () => {
+  const { registry } = await registryFixture();
+  await registry.createPersonalProvider({ templateId: 'deepseek', apiKey: 'sk-ds' });
+  await registry.updatePersonalModel('deepseek', 'deepseek-flash', {
+    contextWindow: 32000, maxOutputTokens: 4096, input: { image: true }, capabilities: { structuredOutput: true }, enabled: false,
+  });
+  const model = registry.publicState().providers.find(entry => entry.id === 'deepseek').models.find(entry => entry.id === 'deepseek-flash');
+  assert.equal(model.contextWindow, 32000);
+  assert.equal(model.maxOutputTokens, 4096);
+  assert.equal(model.input.image, true);
+  assert.equal(model.input.text, true);
+  assert.equal(model.capabilities.structuredOutput, true);
+  assert.equal(model.enabled, false);
+  assert.throws(() => registry.resolve('deepseek', 'deepseek-flash'), error => error.status === 409);
+  // The default selection skips the disabled model instead of failing.
+  assert.equal(registry.resolve('deepseek').modelId, 'deepseek-chat');
+  await assert.rejects(() => registry.updatePersonalModel('deepseek', 'deepseek-chat', { contextWindow: -5 }), error => error.status === 400);
+  await assert.rejects(() => registry.updatePersonalModel('deepseek', 'deepseek-chat', { unknown: 1 }), error => error.status === 400);
+  await registry.updatePersonalModel('deepseek', 'deepseek-flash', { enabled: true });
+  assert.equal(registry.resolve('deepseek', 'deepseek-flash').modelId, 'deepseek-flash');
+});
+
+test('providers declare an API format and Responses models resolve without chat reasoning patches', async () => {
+  const { registry } = await registryFixture();
+  const created = await registry.createPersonalProvider({
+    name: 'ResponsesGW', baseUrl: 'https://gw.example/v1',
+    apiKey: 'sk-gw', modelIds: ['o3x'], apiFormat: 'openai-responses',
+  });
+  await assert.rejects(() => registry.createPersonalProvider({
+    templateId: 'openai-compatible', baseUrl: 'https://gw.example/v1', modelIds: ['x'], apiFormat: 'anthropic',
+  }), error => error.status === 400);
+  const resolved = registry.resolve(created.id, 'o3x', { reasoningLevel: 'high' });
+  assert.equal(resolved.apiFormat, 'openai-responses');
+  assert.equal(resolved.reasoningLevel, 'high');
+  assert.deepEqual(resolved.requestPatch, {}, 'Responses reasoning mapping is deferred; no chat patch is sent');
+  await registry.updatePersonalProvider(created.id, { apiFormat: 'openai-chat-completions' });
+  assert.deepEqual(registry.resolve(created.id, 'o3x', { reasoningLevel: 'high' }).requestPatch, { reasoning_effort: 'high' });
 });

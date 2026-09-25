@@ -35,6 +35,39 @@ export function chatCompletionsUrl(baseUrl) {
   return url.toString();
 }
 
+export function responsesUrl(baseUrl) {
+  let url;
+  try { url = new URL(baseUrl); } catch { throw new ProviderError('Provider base URL is invalid.', 400); }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+    throw new ProviderError('Provider base URL must be an HTTP(S) URL without credentials, query, or fragment.', 400);
+  }
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  if (!url.pathname.endsWith('/responses')) url.pathname += '/responses';
+  return url.toString();
+}
+
+/** Map the engine's chat-style history onto the Responses API input/instructions shape. */
+export function toResponsesInput(messages = []) {
+  const instructions = [];
+  const input = [];
+  for (const message of messages) {
+    if (message.role === 'system') { instructions.push(String(message.content ?? '')); continue; }
+    if (message.role === 'tool') {
+      input.push({ type: 'function_call_output', call_id: message.tool_call_id, output: String(message.content ?? '') });
+      continue;
+    }
+    if (message.role === 'assistant' && Array.isArray(message.tool_calls) && message.tool_calls.length) {
+      if (message.content) input.push({ role: 'assistant', content: message.content });
+      for (const call of message.tool_calls) {
+        input.push({ type: 'function_call', call_id: call.id, name: call.function.name, arguments: call.function.arguments ?? '{}' });
+      }
+      continue;
+    }
+    input.push({ role: message.role, content: String(message.content ?? '') });
+  }
+  return { instructions: instructions.join('\n\n') || undefined, input };
+}
+
 function abortable(promise, signal) {
   signal.throwIfAborted();
   return new Promise((resolve, reject) => {
@@ -88,9 +121,12 @@ async function boundedBody(response, maxBytes, signal) {
 
 /** One real OpenAI-compatible streaming turn. Internal message preserves reasoning_content. */
 export async function streamChatCompletion({
-  baseUrl, model, apiKey, messages, tools = [], requestPatch = {}, signal, onDelta = () => {},
-  fetchImpl = globalThis.fetch, timeoutMs = 120_000,
+  baseUrl, model, apiKey, messages, tools = [], requestPatch = {}, apiFormat = 'openai-chat-completions',
+  maxOutputTokens = null, signal, onDelta = () => {}, fetchImpl = globalThis.fetch, timeoutMs = 120_000,
 }) {
+  if (apiFormat === 'openai-responses') {
+    return streamResponsesCompletion({ baseUrl, model, apiKey, messages, tools, requestPatch, maxOutputTokens, signal, onDelta, fetchImpl, timeoutMs });
+  }
   if (typeof model !== 'string' || !model.trim() || typeof apiKey !== 'string' || !apiKey.trim()) {
     throw new ProviderError('Provider is not configured. Set the model and API key on the server.', 503);
   }
@@ -106,6 +142,7 @@ export async function streamChatCompletion({
     controller.signal.throwIfAborted();
     const body = { model, messages, stream: true };
     if (tools.length) { body.tools = tools; body.tool_choice = 'auto'; }
+    if (maxOutputTokens != null) body.max_tokens = maxOutputTokens;
     applyRequestPatch(body, requestPatch);
     const response = await abortable(fetchImpl(url, {
       method: 'POST',
@@ -218,6 +255,174 @@ export async function streamChatCompletion({
         ids.add(call.id);
       }
     } else if (!content && !reasoning) throw new ProviderError('Provider returned an empty response.');
+    return { message, finishReason, usage };
+  } catch (error) {
+    if (controller.signal.aborted) throw controller.signal.reason;
+    if (error instanceof ProviderError) throw error;
+    throw new ProviderError(`Provider connection failed: ${redactSecrets(error?.message || String(error), [apiKey]).slice(0, 1500)}`);
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
+    if (reader) { reader.cancel().catch(() => {}); reader.releaseLock(); }
+  }
+}
+
+/** Streaming turn against the OpenAI Responses API (/responses), mapped to the same internal message shape. */
+async function streamResponsesCompletion({
+  baseUrl, model, apiKey, messages, tools = [], requestPatch = {}, maxOutputTokens = null,
+  signal, onDelta = () => {}, fetchImpl = globalThis.fetch, timeoutMs = 120_000,
+}) {
+  if (typeof model !== 'string' || !model.trim() || typeof apiKey !== 'string' || !apiKey.trim()) {
+    throw new ProviderError('Provider is not configured. Set the model and API key on the server.', 503);
+  }
+  if (typeof fetchImpl !== 'function') throw new ProviderError('Fetch is unavailable.', 503);
+  const url = responsesUrl(baseUrl);
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  const timeout = setTimeout(() => controller.abort(new DOMException('Provider request timed out. Try continuing the task.', 'TimeoutError')), timeoutMs);
+  let reader;
+  try {
+    controller.signal.throwIfAborted();
+    const { instructions, input } = toResponsesInput(messages);
+    const body = { model, input, stream: true };
+    if (instructions) body.instructions = instructions;
+    if (tools.length) {
+      body.tools = tools.map(tool => ({ type: 'function', name: tool.function.name, description: tool.function.description, parameters: tool.function.parameters }));
+      body.tool_choice = 'auto';
+    }
+    if (maxOutputTokens != null) body.max_output_tokens = maxOutputTokens;
+    applyRequestPatch(body, requestPatch);
+    const response = await abortable(fetchImpl(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(body), signal: controller.signal,
+      // Never forward the credential through an unexpected cross-host redirect.
+      redirect: 'error',
+    }), controller.signal);
+    if (!response.ok) {
+      const raw = await boundedBody(response, 8192, controller.signal);
+      let detail = raw;
+      try { const parsed = JSON.parse(raw); detail = parsed.error?.message || parsed.message || raw; } catch { /* Plain-text provider errors are valid. */ }
+      throw new ProviderError(`Provider HTTP ${response.status}: ${redactSecrets(detail, [apiKey]).slice(0, 1500) || response.statusText || 'Request failed'}`, response.status);
+    }
+    reader = response.body?.getReader();
+    if (!reader) throw new ProviderError('Provider returned no response stream.');
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    const calls = new Map();
+    let content = '';
+    let finishReason = null;
+    let usage = null;
+    let doneMarker = false;
+    let total = 0;
+    let buffer = '';
+    let data = [];
+    let eventBytes = 0;
+
+    const upsertCall = (itemId, patch) => {
+      const call = calls.get(itemId) ?? { id: '', name: '', arguments: '' };
+      calls.set(itemId, { ...call, ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) });
+    };
+
+    const dispatch = async () => {
+      if (!data.length) return;
+      const raw = data.join('\n');
+      data = [];
+      eventBytes = 0;
+      if (raw.trim() === '[DONE]') { doneMarker = true; return; }
+      let event;
+      try { event = JSON.parse(raw); } catch { throw new ProviderError('Provider sent malformed SSE JSON. Try continuing the task.'); }
+      if (event.error) throw new ProviderError(`Provider stream error: ${redactSecrets(event.error.message || JSON.stringify(event.error), [apiKey]).slice(0, 1500)}`);
+      switch (event.type) {
+        case 'response.output_text.delta':
+          if (typeof event.delta === 'string' && event.delta) { content += event.delta; await onDelta({ content: event.delta }); }
+          break;
+        case 'response.output_item.added':
+          if (event.item?.type === 'function_call') {
+            upsertCall(event.item.id ?? `item-${calls.size}`, { id: event.item.call_id, name: event.item.name, arguments: event.item.arguments ?? '' });
+          }
+          break;
+        case 'response.function_call_arguments.delta':
+          if (typeof event.delta === 'string' && event.item_id) {
+            const call = calls.get(event.item_id);
+            if (call) call.arguments += event.delta;
+          }
+          break;
+        case 'response.output_item.done':
+          if (event.item?.type === 'function_call') {
+            upsertCall(event.item.id ?? `item-${calls.size}`, { id: event.item.call_id, name: event.item.name, arguments: event.item.arguments ?? '' });
+          }
+          break;
+        case 'response.completed':
+        case 'response.incomplete': {
+          doneMarker = true;
+          const completed = event.response ?? {};
+          const functionCalls = Array.isArray(completed.output) ? completed.output.filter(item => item.type === 'function_call') : [];
+          for (const item of functionCalls) upsertCall(item.id ?? `item-${calls.size}`, { id: item.call_id, name: item.name, arguments: item.arguments ?? '' });
+          if (event.type === 'response.incomplete' && completed.incomplete_details?.reason === 'max_output_tokens') {
+            throw new ProviderError('Provider reached its response token limit. Try continuing the task.');
+          }
+          finishReason = functionCalls.length ? 'tool_calls' : 'stop';
+          usage = completed.usage ?? usage;
+          break;
+        }
+        case 'response.failed':
+          throw new ProviderError(`Provider stream error: ${redactSecrets(event.response?.error?.message || 'response failed', [apiKey]).slice(0, 1500)}`);
+        default:
+          if (event.type === 'response.error' || (/error/i.test(event.type) && typeof event.message === 'string')) {
+            throw new ProviderError(`Provider stream error: ${redactSecrets(event.message || event.type, [apiKey]).slice(0, 1500)}`);
+          }
+      }
+    };
+
+    const line = async value => {
+      if (value.endsWith('\r')) value = value.slice(0, -1);
+      if (!value) { await dispatch(); return; }
+      if (value.startsWith(':')) return;
+      if (value === 'data' || value.startsWith('data:')) {
+        let part = value === 'data' ? '' : value.slice(5);
+        if (part.startsWith(' ')) part = part.slice(1);
+        eventBytes += Buffer.byteLength(part);
+        if (eventBytes > MAX_EVENT_BYTES) throw new ProviderError('Provider SSE event exceeded the 1MB limit.');
+        data.push(part);
+      }
+    };
+
+    const drainLines = async final => {
+      let end;
+      while ((end = buffer.search(/[\r\n]/)) !== -1 && !doneMarker) {
+        // A CR split from its LF must wait for the next chunk, not create a blank event.
+        if (!final && buffer[end] === '\r' && end === buffer.length - 1) break;
+        const value = buffer.slice(0, end);
+        const width = buffer[end] === '\r' && buffer[end + 1] === '\n' ? 2 : 1;
+        buffer = buffer.slice(end + width);
+        await line(value);
+      }
+    };
+    while (!doneMarker) {
+      const next = await abortable(reader.read(), controller.signal);
+      if (next.done) { buffer += decoder.decode(); await drainLines(true); break; }
+      total += next.value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) throw new ProviderError('Provider response exceeded the 2MB safety limit.');
+      buffer += decoder.decode(next.value, { stream: true });
+      await drainLines(false);
+      if (Buffer.byteLength(buffer) > MAX_EVENT_BYTES) throw new ProviderError('Provider SSE line exceeded the 1MB limit.');
+    }
+    if (!doneMarker) {
+      if (buffer) await line(buffer);
+      await dispatch();
+    }
+    if (!doneMarker) throw new ProviderError('Provider stream ended before completion. Try continuing the task.');
+    const message = { role: 'assistant', content: content || (calls.size ? null : '') };
+    if (calls.size) {
+      message.tool_calls = [...calls.values()].map(call => ({ id: call.id, type: 'function', function: { name: call.name, arguments: call.arguments } }));
+      const ids = new Set();
+      for (const call of message.tool_calls) {
+        if (!call.id || !call.function.name || ids.has(call.id)) throw new ProviderError('Provider returned incomplete or duplicate tool calls.');
+        ids.add(call.id);
+      }
+    } else if (!content) throw new ProviderError('Provider returned an empty response.');
     return { message, finishReason, usage };
   } catch (error) {
     if (controller.signal.aborted) throw controller.signal.reason;

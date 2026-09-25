@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { fileError } from './files.mjs';
 import {
+  API_FORMATS,
   defaultOnlyModelOption,
   explicitModelOptionMap,
   normalizeModelOption,
@@ -125,11 +126,13 @@ export class ProviderRegistry {
     const providers = {};
     for (const [id, value] of Object.entries(config.providers ?? {})) {
       if (!PROVIDER_ID.test(id)) throw providerError(`Invalid provider id: ${id}`);
+      if (value.apiFormat !== undefined && !API_FORMATS.includes(value.apiFormat)) throw providerError(`Invalid apiFormat for provider ${id}.`);
       providers[id] = {
         id,
         name: value.name ?? id,
         templateId: value.templateId,
         baseUrl: value.baseUrl,
+        apiFormat: value.apiFormat,
         enabled: value.enabled ?? true,
         modelIds: Array.isArray(value.modelIds) ? [...value.modelIds] : undefined,
         modelOptions: normalizeModelOptionMap(value.modelOptions),
@@ -189,16 +192,29 @@ export class ProviderRegistry {
 
   #modelOption(provider, modelId) {
     const template = provider.templateId ? this.#template(provider.templateId) : null;
-    const option = provider.modelOptions?.[modelId]
-      ?? provider.modelOptions?.['*']
-      ?? template?.config?.modelOptions?.[modelId]
-      ?? template?.config?.modelOptions?.['*'];
-    if (option) return normalizeModelOption(option);
+    const rawPersonal = provider.modelOptions?.[modelId] ?? provider.modelOptions?.['*'];
+    const rawTemplate = template?.config?.modelOptions?.[modelId] ?? template?.config?.modelOptions?.['*'];
+    // ZCode-style sparse overlay: the personal layer overrides per key; absent keys inherit the template.
+    if (rawPersonal !== undefined || rawTemplate !== undefined) {
+      const raw = rawPersonal === undefined ? rawTemplate : { ...(rawTemplate ?? {}), ...rawPersonal };
+      return normalizeModelOption(raw);
+    }
     return normalizeModelOption(provider.templateId ? defaultOnlyModelOption() : safeReasoningModelOption());
   }
 
   #resolvedModelStates(provider) {
     return this.#resolvedModels(provider).map(modelId => publicModelOption(modelId, this.#modelOption(provider, modelId)));
+  }
+
+  #apiFormat(provider) {
+    if (provider.apiFormat && API_FORMATS.includes(provider.apiFormat)) return provider.apiFormat;
+    const templateType = provider.templateId ? this.#template(provider.templateId)?.config?.api?.type : null;
+    return API_FORMATS.includes(templateType) ? templateType : 'openai-chat-completions';
+  }
+
+  /** Models the picker and default selection may use; a disabled model stays member-visible but not usable. */
+  #enabledModels(provider) {
+    return this.#resolvedModels(provider).filter(modelId => this.#modelOption(provider, modelId).enabled !== false);
   }
 
   #apiKey(providerId) {
@@ -220,6 +236,7 @@ export class ProviderRegistry {
         apiKeyConfigured: Boolean(this.#apiKey(provider.id)),
         enabled: provider.enabled,
         source: provider.source,
+        apiFormat: this.#apiFormat(provider),
         modelIds: this.#resolvedModels(provider),
         models: this.#resolvedModelStates(provider),
       }));
@@ -230,6 +247,7 @@ export class ProviderRegistry {
         baseUrl: config?.api?.baseUrl ?? '',
         apiKeyManagementUrl: config?.access?.apiKeyManagementUrl ?? null,
         builtinModelIds: config?.builtinModelIds ?? [],
+        apiFormat: API_FORMATS.includes(config?.api?.type) ? config.api.type : 'openai-chat-completions',
         models: (config?.builtinModelIds ?? []).map(modelId => publicModelOption(
           modelId,
           config?.modelOptions?.[modelId] ?? config?.modelOptions?.['*'] ?? defaultOnlyModelOption(),
@@ -269,6 +287,8 @@ export class ProviderRegistry {
       catch (error) { throw providerError(error.message, 400); }
       return {
         providerId: 'default', modelId: requestedModel, baseUrl, apiKey, name: 'Default',
+        apiFormat: 'openai-chat-completions',
+        contextWindow: null, maxOutputTokens: null,
         ...resolvedReasoning,
       };
     }
@@ -282,20 +302,34 @@ export class ProviderRegistry {
     if (!key) throw providerError(`API key for “${provider.name}” is not configured.`, 409);
     if (!baseUrl) throw providerError(`Base URL for “${provider.name}” is not configured.`, 409);
     const models = this.#resolvedModels(provider);
-    const selectedModel = modelId ?? models[0];
-    if (!selectedModel || !models.includes(selectedModel)) throw providerError('The selected model does not belong to this provider.', 400);
+    const apiFormat = this.#apiFormat(provider);
+    let selectedModel = modelId;
+    if (selectedModel === undefined || selectedModel === null) {
+      // Default selection skips a disabled model when an enabled one exists.
+      selectedModel = this.#enabledModels(provider)[0] ?? models[0];
+      if (!selectedModel) throw providerError(`Provider “${provider.name}” has no models.`, 409);
+    } else if (!models.includes(selectedModel)) {
+      throw providerError('The selected model does not belong to this provider.', 400);
+    }
+    const option = normalizeModelOption(this.#modelOption(provider, selectedModel));
+    if (!option.enabled) throw providerError(`Model “${selectedModel}” is disabled for “${provider.name}”.`, 409);
     let resolvedReasoning;
-    try { resolvedReasoning = resolveReasoningOption(this.#modelOption(provider, selectedModel), reasoningLevel); }
+    try { resolvedReasoning = resolveReasoningOption(option, reasoningLevel); }
     catch (error) { throw providerError(error.message, 400); }
     return {
-      providerId: provider.id, modelId: selectedModel, baseUrl, apiKey: key, name: provider.name,
-      ...resolvedReasoning,
+      providerId: provider.id, modelId: selectedModel, baseUrl, apiKey: key, name: provider.name, apiFormat,
+      // Reasoning request mapping is chat-completions only; Responses mapping is deferred.
+      requestPatch: apiFormat === 'openai-responses' ? {} : resolvedReasoning.requestPatch,
+      reasoningLevel: resolvedReasoning.reasoningLevel,
+      contextWindow: option.contextWindow,
+      maxOutputTokens: option.maxOutputTokens,
     };
   }
 
-  async createPersonalProvider({ templateId, name, baseUrl, apiKey, modelIds = [], enabled = true } = {}) {
+  async createPersonalProvider({ templateId, name, baseUrl, apiKey, modelIds = [], enabled = true, apiFormat } = {}) {
     const template = templateId ? this.#template(templateId) : null;
     if (templateId && !template) throw providerError('Provider template not found.', 404);
+    if (apiFormat !== undefined && !API_FORMATS.includes(apiFormat)) throw providerError('apiFormat must be openai-chat-completions or openai-responses.');
     const effectiveBaseUrl = baseUrl ?? template?.config?.api?.baseUrl;
     if (!effectiveBaseUrl) throw providerError('A base URL is required for a custom provider.');
     if (!/^(https?:\/\/)[^\s]+$/i.test(effectiveBaseUrl)) throw providerError('Base URL must be a valid http(s) URL.');
@@ -314,6 +348,7 @@ export class ProviderRegistry {
       name: name?.trim() || template?.templateNameMap?.['zh-CN'] || id,
       templateId: templateId ?? null,
       baseUrl: baseUrl ?? null,
+      apiFormat: apiFormat ?? null,
       enabled,
       // A template's builtin list applies unless the user narrowed it at creation.
       modelIds: providedModels.length ? modelIdList : (template ? undefined : modelIdList),
@@ -335,6 +370,10 @@ export class ProviderRegistry {
       provider.baseUrl = patch.baseUrl;
     }
     if (patch.enabled !== undefined) provider.enabled = Boolean(patch.enabled);
+    if (patch.apiFormat !== undefined) {
+      if (!API_FORMATS.includes(patch.apiFormat)) throw providerError('apiFormat must be openai-chat-completions or openai-responses.');
+      provider.apiFormat = patch.apiFormat;
+    }
     await this.#persist();
     this.#onChange();
     return provider;
@@ -370,6 +409,27 @@ export class ProviderRegistry {
     this.#onChange();
   }
 
+  async updatePersonalModel(id, modelId, patch = {}) {
+    const provider = this.#require(id);
+    if (!this.#resolvedModels(provider).includes(modelId)) throw providerError('Model not found.', 404);
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw providerError('A JSON patch body is required.');
+    const allowed = ['contextWindow', 'maxOutputTokens', 'input', 'capabilities', 'enabled'];
+    for (const key of Object.keys(patch)) if (!allowed.includes(key)) throw providerError(`Unknown model option: ${key}`);
+    const current = this.#modelOption(provider, modelId);
+    const merged = { ...current };
+    if (patch.contextWindow !== undefined) merged.contextWindow = patch.contextWindow;
+    if (patch.maxOutputTokens !== undefined) merged.maxOutputTokens = patch.maxOutputTokens;
+    if (patch.input !== undefined) merged.input = { ...current.input, ...patch.input };
+    if (patch.capabilities !== undefined) merged.capabilities = { ...current.capabilities, ...patch.capabilities };
+    if (patch.enabled !== undefined) merged.enabled = patch.enabled;
+    let option;
+    try { option = normalizeModelOption(merged); }
+    catch (error) { throw providerError(error.message, 400); }
+    provider.modelOptions = { ...(provider.modelOptions ?? {}), [modelId]: option };
+    await this.#persist();
+    this.#onChange();
+  }
+
   async deletePersonalModel(id, modelId) {
     const provider = this.#require(id);
     provider.modelIds = this.#resolvedModels(provider).filter(model => model !== modelId);
@@ -400,7 +460,8 @@ export class ProviderRegistry {
     try {
       await streamChatCompletion({
         baseUrl: resolved.baseUrl, model: resolved.modelId, apiKey: resolved.apiKey,
-        requestPatch: resolved.requestPatch,
+        requestPatch: resolved.requestPatch, apiFormat: resolved.apiFormat,
+        maxOutputTokens: resolved.maxOutputTokens,
         messages: [{ role: 'user', content: 'ping' }], timeoutMs: 20000, fetchImpl: this.#fetchImpl,
       });
       return { success: true };

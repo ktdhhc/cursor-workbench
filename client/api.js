@@ -205,6 +205,35 @@ export function modelEntry(providers, providerId, modelId) {
   return null;
 }
 
+/**
+ * A model counts as usable unless its ModelInfo entry explicitly disables it.
+ * Legacy payloads without a models[] entry are treated as enabled.
+ */
+export function modelEnabled(provider, modelId) {
+  if (!provider || !modelId) return false;
+  const entry = Array.isArray(provider.models) ? provider.models.find((model) => model.id === modelId) : null;
+  return entry ? entry.enabled !== false : true;
+}
+
+/** Model IDs a provider offers that are not explicitly disabled, in modelIds order. */
+export function enabledModelIds(provider) {
+  const ids = Array.isArray(provider?.modelIds) && provider.modelIds.length
+    ? provider.modelIds
+    : (Array.isArray(provider?.models) ? provider.models.map((model) => model.id) : []);
+  return ids.filter((id) => modelEnabled(provider, id));
+}
+
+/** Compact context window label: 1_000_000+ → "1M", 1000+ → "128K", null → ''. */
+export function formatContextWindow(tokens) {
+  if (typeof tokens !== 'number' || !Number.isFinite(tokens) || tokens <= 0) return '';
+  if (tokens >= 1_000_000) {
+    const millions = tokens / 1_000_000;
+    return `${Number.isInteger(millions) ? millions : millions.toFixed(1)}M`;
+  }
+  if (tokens >= 1000) return `${Math.round(tokens / 1000)}K`;
+  return String(tokens);
+}
+
 /** Reasoning levels a model actually supports; empty means "default only". */
 export function reasoningLevelsFor(providers, providerId, modelId) {
   const levels = modelEntry(providers, providerId, modelId)?.reasoningLevels;
@@ -218,9 +247,12 @@ export function reasoningLabelKey(level) {
 
 export function defaultModelSelection(providers) {
   const selection = providers?.defaultModelSelection;
-  if (selection?.providerId && selection?.modelId) return { providerId: selection.providerId, modelId: selection.modelId };
-  const provider = (providers?.providers || []).find((item) => providerReady(item) && (item.modelIds?.length || item.models?.length));
-  const modelId = provider ? provider.modelIds?.[0] || provider.models?.[0]?.id : null;
+  if (selection?.providerId && selection?.modelId) {
+    const provider = providers?.providers?.find((item) => item.id === selection.providerId);
+    if (!provider || modelEnabled(provider, selection.modelId)) return { providerId: selection.providerId, modelId: selection.modelId };
+  }
+  const provider = (providers?.providers || []).find((item) => providerReady(item) && enabledModelIds(item).length);
+  const modelId = provider ? enabledModelIds(provider)[0] : null;
   return provider && modelId ? { providerId: provider.id, modelId } : { providerId: null, modelId: null };
 }
 
@@ -235,7 +267,8 @@ export function sanitizeRunConfig(saved, providers) {
   const requested = saved?.modelSelection && typeof saved.modelSelection === 'object' ? saved.modelSelection : {};
   const provider = providers?.providers?.find((item) => item.id === requested.providerId);
   const hasModel = Boolean(provider && requested.modelId
-    && (provider.modelIds?.includes(requested.modelId) || provider.models?.some((model) => model.id === requested.modelId)));
+    && (provider.modelIds?.includes(requested.modelId) || provider.models?.some((model) => model.id === requested.modelId))
+    && modelEnabled(provider, requested.modelId));
   const base = hasModel ? { providerId: requested.providerId, modelId: requested.modelId } : defaultModelSelection(providers);
   const level = requested.options?.reasoningLevel;
   const options = reasoningLevelsFor(providers, base.providerId, base.modelId).includes(level) ? { reasoningLevel: level } : {};

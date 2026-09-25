@@ -147,7 +147,7 @@ function systemMessage(runConfig) {
   ].join('\n') };
 }
 
-function boundedContext(history, runConfig) {
+function boundedContext(history, runConfig, limitBytes = MAX_CONTEXT) {
   const system = systemMessage(runConfig);
   const groups = [];
   for (const message of history) {
@@ -159,13 +159,13 @@ function boundedContext(history, runConfig) {
   for (let i = groups.length - 1; i >= 0; i--) {
     let group = groups[i];
     let length = JSON.stringify(group).length;
-    if (!selected.length && length + size > MAX_CONTEXT) {
+    if (!selected.length && length + size > limitBytes) {
       group = group.map(message => message.role !== 'tool' ? message : {
         ...message, content: JSON.stringify({ truncated: true, note: 'Large tool output omitted to bound context. Read focused lines if needed.', preview: message.content.slice(0, 4096) }),
       });
       length = JSON.stringify(group).length;
     }
-    if (length + size > MAX_CONTEXT) break;
+    if (length + size > limitBytes) break;
     selected.unshift(group);
     size += length;
   }
@@ -174,16 +174,22 @@ function boundedContext(history, runConfig) {
   const latestUser = history.findLast(message => message.role === 'user');
   if (latestUser && !messages.includes(latestUser)) {
     const length = JSON.stringify(latestUser).length;
-    while (selected.length > 1 && size + length > MAX_CONTEXT) size -= JSON.stringify(selected.shift()).length;
-    if (size + length > MAX_CONTEXT) throw fileError('Latest model turn exceeds the context limit. Continue with a shorter request.', 413);
+    while (selected.length > 1 && size + length > limitBytes) size -= JSON.stringify(selected.shift()).length;
+    if (size + length > limitBytes) throw fileError('Latest model turn exceeds the context limit. Continue with a shorter request.', 413);
     return [system, latestUser, ...selected.flat()];
   }
   return [system, ...messages];
 }
 
-function contextStats(history) {
+function contextStats(history, limitBytes = MAX_CONTEXT) {
   const bytes = Buffer.byteLength(JSON.stringify(history));
-  return { estimatedBytes: Math.min(bytes, MAX_CONTEXT), limitBytes: MAX_CONTEXT, compacted: bytes > MAX_CONTEXT };
+  return { estimatedBytes: Math.min(bytes, limitBytes), limitBytes, compacted: bytes > limitBytes };
+}
+
+/** Rough byte budget from a model's token context window (~3 bytes/token); never above the engine default. */
+function contextLimitFor(provider) {
+  if (!provider?.contextWindow) return MAX_CONTEXT;
+  return Math.max(32 * 1024, Math.min(MAX_CONTEXT, provider.contextWindow * 3));
 }
 
 function repairToolHistory(history, reason) {
@@ -508,10 +514,13 @@ export class AgentEngine {
         apiKey: resolved.apiKey,
         requestPatch: resolved.requestPatch,
         reasoningLevel: resolved.reasoningLevel ?? selection.options.reasoningLevel,
+        apiFormat: resolved.apiFormat ?? 'openai-chat-completions',
+        contextWindow: resolved.contextWindow ?? null,
+        maxOutputTokens: resolved.maxOutputTokens ?? null,
       };
       return record.provider;
     }
-    return record.provider ?? { providerId: selection.providerId, baseUrl: this.#options.baseUrl, model: selection.modelId ?? this.#options.model, apiKey: this.#options.apiKey, requestPatch: null, reasoningLevel: selection.options.reasoningLevel };
+    return record.provider ?? { providerId: selection.providerId, baseUrl: this.#options.baseUrl, model: selection.modelId ?? this.#options.model, apiKey: this.#options.apiKey, requestPatch: null, reasoningLevel: selection.options.reasoningLevel, apiFormat: 'openai-chat-completions', contextWindow: null, maxOutputTokens: null };
   }
   #redact(value, key = this.#options.apiKey) { return redactSecrets(value, [key, ...(this.#options.secretSupplier?.() ?? [])].filter(Boolean)); }
   #hideKey(value, key = this.#options.apiKey) {
@@ -539,7 +548,7 @@ export class AgentEngine {
     result.providerId = task.providerId ?? null;
     result.model = task.model ?? this.#options.model;
     result.runConfig = clone(record.runConfig ?? task.runConfig);
-    result.context = contextStats(record.history ?? []);
+    result.context = contextStats(record.history ?? [], contextLimitFor(record.provider));
     return clone(this.#sanitize(result, this.#providerKey(record)));
   }
   #emit() { try { const result = this.#options.onChange?.(this.getTasks()); if (result?.catch) result.catch(() => {}); } catch { /* Observers are isolated. */ } }
@@ -581,6 +590,7 @@ export class AgentEngine {
     try { provider = this.#providerFor(record); }
     catch (error) { task.status = 'error'; task.error = this.#redact(error.message); this.#emit(); return; }
     try {
+      const limitBytes = contextLimitFor(provider);
       for (let turn = 0; turn < MAX_TURNS; turn++) {
         signal.throwIfAborted();
         let visible;
@@ -589,7 +599,8 @@ export class AgentEngine {
         let lastSave = Date.now();
         const { message } = await streamChatCompletion({
           ...this.#options, baseUrl: provider.baseUrl, model: provider.model, apiKey: provider.apiKey, requestPatch: provider.requestPatch,
-          messages: boundedContext(record.history, record.runConfig), tools: availableTools(record.runConfig).map(({ capability, ...tool }) => tool), signal,
+          apiFormat: provider.apiFormat, maxOutputTokens: provider.maxOutputTokens,
+          messages: boundedContext(record.history, record.runConfig, limitBytes), tools: availableTools(record.runConfig).map(({ capability, ...tool }) => tool), signal,
           onDelta: async delta => {
             signal.throwIfAborted();
             if (typeof delta.content !== 'string' || !delta.content) return;

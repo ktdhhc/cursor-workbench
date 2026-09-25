@@ -13,12 +13,15 @@
           "deepseek-flash": {
             "reasoningLevels": ["default", "low", "medium", "high"],
             "defaultReasoningLevel": "default",
+            "contextWindow": 128000,
             "requestPatches": {
               "low": { "reasoning_effort": "low" },
               "medium": { "reasoning_effort": "medium" },
               "high": { "reasoning_effort": "high" }
             }
-          }
+          },
+          "deepseek-chat": { "contextWindow": 128000, "maxOutputTokens": 8192 },
+          "deepseek-reasoner": { "contextWindow": 128000, "maxOutputTokens": 8192 }
         }
       }
     },
@@ -95,6 +98,9 @@
         "api": { "type": "openai-chat-completions", "baseUrl": "https://api.openai.com/v1" },
         "builtinModelIds": ["gpt-4o", "gpt-4o-mini", "o4-mini"],
         "modelOptions": {
+          "gpt-4o": { "contextWindow": 128000, "maxOutputTokens": 16384, "input": { "image": true } },
+          "gpt-4o-mini": { "contextWindow": 128000, "maxOutputTokens": 16384, "input": { "image": true } },
+          "o4-mini": { "contextWindow": 200000, "maxOutputTokens": 100000, "input": { "image": true } },
           "*": {
             "reasoningLevels": ["default", "low", "medium", "high"],
             "defaultReasoningLevel": "default",

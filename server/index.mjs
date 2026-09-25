@@ -46,7 +46,7 @@ const registry = await new ProviderRegistry({
 const engine = new AgentEngine({ workspace, stateDir: path.join(stateDir, 'agents'), baseUrl: config.baseUrl, model: config.model, apiKey: process.env.AI_API_KEY, onChange: broadcast,
   providerResolver: (providerId, modelId, options) => {
     const resolved = registry.resolve(providerId, modelId, options);
-    return resolved ? { providerId: resolved.providerId, baseUrl: resolved.baseUrl, model: resolved.modelId, apiKey: resolved.apiKey, requestPatch: resolved.requestPatch, reasoningLevel: resolved.reasoningLevel } : null;
+    return resolved ? { providerId: resolved.providerId, baseUrl: resolved.baseUrl, model: resolved.modelId, apiKey: resolved.apiKey, requestPatch: resolved.requestPatch, reasoningLevel: resolved.reasoningLevel, apiFormat: resolved.apiFormat, contextWindow: resolved.contextWindow, maxOutputTokens: resolved.maxOutputTokens } : null;
   },
   secretSupplier: () => registry.secretValues(),
 });
@@ -141,8 +141,8 @@ app.post('/api/tasks/:id/approval', async (req, res) => {
 app.post('/api/tasks/:id/changes/:changeId', async (req, res) => res.json(await engine.resolveChange(req.params.id, req.params.changeId, req.body.action)));
 app.get('/api/providers', (_req, res) => res.json({ ...registry.publicState(), modelAvailability: modelAvailability() }));
 app.post('/api/providers', async (req, res) => {
-  const { templateId, name, baseUrl, apiKey, modelIds, enabled } = req.body ?? {};
-  await registry.createPersonalProvider({ templateId, name, baseUrl, apiKey, modelIds, enabled });
+  const { templateId, name, baseUrl, apiKey, modelIds, enabled, apiFormat } = req.body ?? {};
+  await registry.createPersonalProvider({ templateId, name, baseUrl, apiKey, modelIds, enabled, apiFormat });
   broadcast();
   res.status(201).json(registry.publicState());
 });
@@ -163,6 +163,11 @@ app.put('/api/providers/:id/apiKey', async (req, res) => {
 });
 app.post('/api/providers/:id/models', async (req, res) => {
   await registry.addPersonalModel(req.params.id, req.body?.modelId);
+  broadcast();
+  res.json(registry.publicState());
+});
+app.patch('/api/providers/:id/models/:modelId', async (req, res) => {
+  await registry.updatePersonalModel(req.params.id, req.params.modelId, req.body ?? {});
   broadcast();
   res.json(registry.publicState());
 });

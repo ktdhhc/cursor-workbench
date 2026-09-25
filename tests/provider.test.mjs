@@ -138,3 +138,102 @@ test('fails closed on unsafe request patches before starting a provider request'
   }
   assert.equal({}.polluted, undefined);
 });
+
+const responsesEvent = (type, extra = {}) => ({ type, ...extra });
+function responsesSse(events, width = 7) {
+  const body = events.map(value => `event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`).join('');
+  const bytes = new TextEncoder().encode(body);
+  return new Response(new ReadableStream({ start(controller) {
+    for (let i = 0; i < bytes.length; i += width) controller.enqueue(bytes.slice(i, i + width));
+    controller.close();
+  } }), { headers: { 'content-type': 'text/event-stream' } });
+}
+
+test('Responses adapter maps instructions, input items and max_output_tokens onto /responses', async () => {
+  let request;
+  const deltas = [];
+  const result = await streamChatCompletion({
+    ...config, apiFormat: 'openai-responses', maxOutputTokens: 4096, requestPatch: { reasoning_effort: 'high' },
+    messages: [
+      { role: 'system', content: 'Be brief.' },
+      { role: 'user', content: 'go' },
+      { role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":"a"}' } }] },
+      { role: 'tool', tool_call_id: 'call_1', content: '{"content":"x"}' },
+    ],
+    onDelta: delta => deltas.push(delta),
+    fetchImpl: async (url, options) => {
+      request = { url, body: JSON.parse(options.body) };
+      return responsesSse([
+        responsesEvent('response.output_text.delta', { delta: 'hi' }),
+        responsesEvent('response.completed', { response: { output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'hi' }] }], usage: { total_tokens: 7 } } }),
+      ]);
+    },
+  });
+  assert.equal(request.url, 'https://provider.invalid/v1/responses');
+  assert.equal(request.body.instructions, 'Be brief.');
+  assert.deepEqual(request.body.input, [
+    { role: 'user', content: 'go' },
+    { type: 'function_call', call_id: 'call_1', name: 'read_file', arguments: '{"path":"a"}' },
+    { type: 'function_call_output', call_id: 'call_1', output: '{"content":"x"}' },
+  ]);
+  assert.equal(request.body.max_output_tokens, 4096);
+  assert.equal(request.body.stream, true);
+  assert.deepEqual(request.body.tools, undefined);
+  assert.equal(result.message.content, 'hi');
+  assert.equal(result.finishReason, 'stop');
+  assert.equal(result.usage.total_tokens, 7);
+  assert.equal(deltas.map(x => x.content || '').join(''), 'hi');
+});
+
+test('Responses adapter reassembles streamed function calls and reports tool_calls finish', async () => {
+  const result = await streamChatCompletion({
+    ...config, apiFormat: 'openai-responses',
+    messages: [{ role: 'user', content: 'go' }],
+    tools: [{ type: 'function', function: { name: 'read_file', description: 'read', parameters: { type: 'object' } } }],
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body.tools, [{ type: 'function', name: 'read_file', description: 'read', parameters: { type: 'object' } }]);
+      assert.equal(body.tool_choice, 'auto');
+      return responsesSse([
+        responsesEvent('response.output_item.added', { item: { type: 'function_call', id: 'fc_1', call_id: 'call_9', name: 'read_file', arguments: '' } }),
+        responsesEvent('response.function_call_arguments.delta', { item_id: 'fc_1', delta: '{"pa' }),
+        responsesEvent('response.function_call_arguments.delta', { item_id: 'fc_1', delta: 'th":"x"}' }),
+        responsesEvent('response.output_item.done', { item: { type: 'function_call', id: 'fc_1', call_id: 'call_9', name: 'read_file', arguments: '{"path":"x"}' } }),
+        responsesEvent('response.completed', { response: { output: [{ type: 'function_call', id: 'fc_1', call_id: 'call_9', name: 'read_file', arguments: '{"path":"x"}' }] } }),
+      ]);
+    },
+  });
+  assert.equal(result.finishReason, 'tool_calls');
+  assert.deepEqual(result.message.tool_calls.map(x => [x.id, x.function.name, x.function.arguments]), [['call_9', 'read_file', '{"path":"x"}']]);
+});
+
+test('Responses adapter fails closed on failures, truncation and empty streams', async () => {
+  await assert.rejects(streamChatCompletion({ ...config, apiFormat: 'openai-responses', messages: [], fetchImpl: async () => responsesSse([
+    responsesEvent('response.failed', { response: { error: { message: `boom ${config.apiKey}` } } }),
+  ]) }), error => {
+    assert.match(error.message, /boom/);
+    assert.ok(!error.message.includes(config.apiKey));
+    return true;
+  });
+  await assert.rejects(streamChatCompletion({ ...config, apiFormat: 'openai-responses', messages: [], fetchImpl: async () => responsesSse([
+    responsesEvent('response.incomplete', { response: { incomplete_details: { reason: 'max_output_tokens' } } }),
+  ]) }), /token limit/);
+  await assert.rejects(streamChatCompletion({ ...config, apiFormat: 'openai-responses', messages: [], fetchImpl: async () => new Response(new ReadableStream({ start(controller) { controller.close(); } })) }), /ended before completion/);
+  await assert.rejects(streamChatCompletion({ ...config, apiFormat: 'openai-responses', messages: [], fetchImpl: async () => responsesSse([
+    responsesEvent('response.completed', { response: { output: [] } }),
+  ]) }), /empty response/);
+  await assert.rejects(streamChatCompletion({ ...config, apiFormat: 'openai-responses', messages: [], fetchImpl: async () => responsesSse([
+    responsesEvent('response.completed', { response: { output: [{ type: 'function_call', id: 'fc_1', call_id: '', name: 'read_file' }] } }),
+  ]) }), /incomplete or duplicate/);
+});
+
+test('chat completions forwards a configured max_tokens without touching reasoning fields', async () => {
+  let body;
+  await streamChatCompletion({
+    ...config, maxOutputTokens: 2048, messages: [{ role: 'user', content: 'go' }],
+    fetchImpl: async (_url, options) => { body = JSON.parse(options.body); return sse([{ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] }, '[DONE]']); },
+  });
+  assert.equal(body.max_tokens, 2048);
+  assert.equal('reasoning_effort' in body, false);
+  assert.equal('reasoning' in body, false);
+});
