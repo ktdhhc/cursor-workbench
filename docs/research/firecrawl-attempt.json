@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-25",
+  "endpoint": "https://api.firecrawl.dev/v2/search",
+  "method": "POST",
+  "authorizationSent": false,
+  "request": {
+    "query": "site:cursor.com Cursor 3 Agents Window Editor Window",
+    "limit": 3
+  },
+  "httpStatus": 403,
+  "response": {
+    "success": false,
+    "error": "Unfortunately, your IP address looks suspicious, so Firecrawl can't be used without an API key from here. Sign up for a free API key at https://firecrawl.dev for 1000 credits and higher rate limits for free. (If you're an agent, you can also use https://firecrawl.dev/auth.md)"
+  },
+  "outcome": "Blocked: no successful search results. No account created, no alternate key sent, no rate-limit or access restriction bypass attempted.",
+  "localAlternative": "Official self-hosted key-free search exists in source, but no lightweight deployment was verified. Current WSL available memory about 1.8 GiB and swap usage about 1.9/2 GiB; multi-service deployment not started."
+}
