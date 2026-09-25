@@ -96,3 +96,7 @@ Microsoft VS Code 源码真实克隆于 `vendor/vscode`。运行编辑器使用 
 这是 Cursor **核心体验**实现，不含专有模型、云端 VM、PR 托管、多人租户、计费或 Cursor 商业服务。Firecrawl 未配置，调研使用官方公开资料替代；Context7 实际检索结果保留在 `docs/research`。
 
 阶段性截图、真实模型验证和需求审计见 `docs/evidence/`。最终 WSL Node24 验证为 32 项测试通过、生产构建成功；冷启动、真实 DeepSeek 并发任务、浏览器文件保存/变更还原和双窗口切换都有独立证据。完整需求映射见 `docs/evidence/REQUIREMENTS-AUDIT.md`，视觉审阅的实际结论与流程差异见 `docs/evidence/FINAL-REVIEW.md`。
+
+## 许可证
+
+本项目自有代码以 [MIT](LICENSE) 许可证发布。运行时依赖的 Microsoft VS Code（Code-OSS）与 code-server 均为 MIT 许可、在 `npm run setup` 时从官方渠道获取，不在本仓库中再分发；归属与版本见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 与 [UPSTREAM.json](UPSTREAM.json)。

@@ -1,7 +1,8 @@
 {
   "name": "cursor-workbench",
   "version": "0.1.0",
-  "private": true,
+  "description": "Local full-stack Web AI coding workbench: genuine Code-OSS editor window plus a task-first Agents window over an OpenAI-compatible model API.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4319",
