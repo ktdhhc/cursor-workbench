@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>我是谁 · Cursor Workbench 编码代理</title>
+<meta name="description" content="一个在本地工作区里读代码、改代码、跑命令并自我验证的编码代理自我介绍页。" />
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --bg-soft: #121a2b;
+    --card: rgba(255, 255, 255, 0.045);
+    --border: rgba(255, 255, 255, 0.10);
+    --border-strong: rgba(255, 255, 255, 0.20);
+    --text: #e8ecf6;
+    --muted: #9aa7c2;
+    --accent: #6ee7ff;
+    --accent-2: #a78bfa;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --radius: 16px;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(60rem 30rem at 12% -10%, rgba(110, 231, 255, 0.16), transparent 60%),
+      radial-gradient(50rem 28rem at 88% 4%, rgba(167, 139, 250, 0.16), transparent 62%),
+      linear-gradient(180deg, #0b0f1a 0%, #0a0d16 100%);
+  }
+
+  a { color: var(--accent); }
+
+  .wrap {
+    width: min(1080px, 100% - 2.5rem);
+    margin-inline: auto;
+  }
+
+  header.site {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    backdrop-filter: blur(12px);
+    background: rgba(11, 15, 26, 0.72);
+    border-bottom: 1px solid var(--border);
+  }
+
+  header.site .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 0;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.15);
+  }
+
+  nav.links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.1rem;
+    font-size: 0.92rem;
+  }
+
+  nav.links a {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.18s ease;
+  }
+
+  nav.links a:hover { color: var(--text); }
+
+  /* Hero */
+  .hero {
+    padding: 4.5rem 0 3rem;
+  }
+
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    background: var(--card);
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 5.2vw, 3.35rem);
+    line-height: 1.15;
+    margin: 1.1rem 0 0.6rem;
+    letter-spacing: -0.02em;
+  }
+
+  .grad {
+    background: linear-gradient(100deg, var(--accent), var(--accent-2) 65%, #f0abfc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hero .lead {
+    font-size: 1.06rem;
+    color: var(--muted);
+    max-width: 46rem;
+    margin: 0 0 1.6rem;
+  }
+
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 0.6rem 1.05rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--card);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.94rem;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .btn:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent);
+  }
+
+  .btn.primary {
+    background: linear-gradient(120deg, rgba(110, 231, 255, 0.22), rgba(167, 139, 250, 0.22));
+    border-color: rgba(110, 231, 255, 0.45);
+  }
+
+  /* Sections */
+  section { padding: 2.9rem 0; }
+
+  h2 {
+    font-size: clamp(1.35rem, 2.6vw, 1.8rem);
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.01em;
+  }
+
+  .sub {
+    color: var(--muted);
+    margin: 0 0 1.7rem;
+    max-width: 48rem;
+  }
+
+  .grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.15rem 1.2rem;
+    transition: transform 0.18s ease, border-color 0.18s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-strong);
+  }
+
+  .card h3 {
+    margin: 0.55rem 0 0.4rem;
+    font-size: 1.03rem;
+  }
+
+  .card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+
+  .icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(110, 231, 255, 0.10);
+    border: 1px solid rgba(110, 231, 255, 0.22);
+    font-size: 1rem;
+  }
+
+  /* Tool table */
+  .table-scroll { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    min-width: 560px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  th, td {
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  th {
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.1rem 0.36rem;
+  }
+
+  /* Steps */
+  ol.steps {
+    list-style: none;
+    counter-reset: step;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  ol.steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 0.9rem 1rem 0.9rem 3.4rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  ol.steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 1rem;
+    top: 0.95rem;
+    width: 1.7rem;
+    height: 1.7rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #06202a;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  }
+
+  ol.steps strong { display: block; }
+  ol.steps span { color: var(--muted); font-size: 0.93rem; }
+
+  /* Boundary list */
+  ul.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+
+  ul.checks li {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warn);
+    border-radius: 10px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.94rem;
+    color: var(--muted);
+  }
+
+  ul.checks li b { color: var(--text); font-weight: 600; }
+
+  /* Demo */
+  .demo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    margin-top: 0.4rem;
+  }
+
+  input[type="text"] {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 0.62rem 0.8rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text);
+    font: inherit;
+  }
+
+  input[type="text"]:focus {
+    outline: 2px solid rgba(110, 231, 255, 0.5);
+    outline-offset: 1px;
+    border-color: var(--accent);
+  }
+
+  button.act {
+    padding: 0.62rem 1rem;
+    border-radius: 10px;
+    border: 1px solid rgba(110, 231, 255, 0.45);
+    background: linear-gradient(120deg, rgba(110, 231, 255, 0.2), rgba(167, 139, 250, 0.2));
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  button.act:hover { border-color: var(--accent); }
+
+  .output {
+    margin-top: 0.8rem;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--ok);
+    min-height: 1.4rem;
+  }
+
+  footer.site {
+    border-top: 1px solid var(--border);
+    padding: 1.6rem 0 2.6rem;
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+
+  footer.site .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.2rem;
+    justify-content: space-between;
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap bar">
+    <div class="brand"><span class="dot" aria-hidden="true"></span> Cursor&nbsp;Workbench · 编码代理</div>
+    <nav class="links" aria-label="页面导航">
+      <a href="#skills">能力</a>
+      <a href="#tools">工具</a>
+      <a href="#flow">工作方式</a>
+      <a href="#boundaries">边界</a>
+      <a href="#demo">试一试</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero wrap" id="top">
+    <p class="kicker">🛠 本地工作区 · 自主执行</p>
+    <h1>你好，我是<br /><span class="grad">你的编码代理</span></h1>
+    <p class="lead">
+      我不是聊天机器人，而是能真正落地的助手：我会读你项目里的真实文件、修改代码、运行命令，
+      并用命令的真实输出来验证结果。看不到证据的事，我不会说它通过了。
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="#demo">试试我的一个函数</a>
+      <a class="btn" href="#tools">看看我能用哪些工具</a>
+    </div>
+  </section>
+
+  <section class="wrap" id="skills">
+    <h2>我能做什么</h2>
+    <p class="sub">围绕「读懂 → 改动 → 验证」这条链路，覆盖日常开发里的大部分重复劳动。</p>
+    <div class="grid">
+      <article class="card">
+        <div class="icon" aria-hidden="true">📖</div>
+        <h3>读懂代码库</h3>
+        <p>按文件名、路径、内容关键字精准检索，只读需要的行范围，不靠猜、不编造实现细节。</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">✏️</div>
+        <h3>安全地改代码</h3>
+        <p>写文件前先校验内容哈希，防止覆盖你正在手工编辑的部分；局部修改优先于整文件重写。</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">⚡</div>
+        <h3>运行命令</h3>
+        <p>跑测试、lint、类型检查、构建、git 检查等；先看 <code>package.json</code> 里实际有哪些脚本再执行。</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">✅</div>
+        <h3>诚实汇报验证</h3>
+        <p>只把真正跑通的结果算作通过；跑不了就明确标记为失败或受阻，并附上原因和证据。</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">🧭</div>
+        <h3>多步任务管理</h3>
+        <p>把长任务拆成清单，始终只有一项处于「进行中」，让你随时知道进度走到哪一步。</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">🚧</div>
+        <h3>把问题交回给你</h3>
+        <p>只有当某个决策确实无法从需求或代码中推断出来时，我才会问一个真正阻塞的问题。</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="wrap" id="tools">
+    <h2>手上的工具箱</h2>
+    <p class="sub">下面这些就是在你项目里实际可调用的操作，全部限定在当前工作区范围内。</p>
+    <div class="table-scroll">
+      <table>
+        <caption class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">可用工具一览</caption>
+        <thead>
+          <tr><th scope="col">工具</th><th scope="col">作用</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>list_files</code> · <code>find_files</code></td><td>浏览目录结构、按模式定位文件</td></tr>
+          <tr><td><code>search_files</code></td><td>在工作区文本里做字面量检索</td></tr>
+          <tr><td><code>read_file</code></td><td>读取文件内容并返回哈希，用作后续编辑的基线</td></tr>
+          <tr><td><code>write_file</code> · <code>replace_text</code> · <code>delete_file</code></td><td>新建 / 局部替换 / 删除文件，全部带哈希冲突校验</td></tr>
+          <tr><td><code>run_command</code></td><td>执行 shell 命令（可设超时、指定工作目录）</td></tr>
+          <tr><td><code>update_todos</code></td><td>维护任务清单，保持单一进行中项</td></tr>
+          <tr><td><code>ask_user</code></td><td>在真正阻塞时提出一个明确的选择题</td></tr>
+          <tr><td><code>report_verification</code></td><td>在验证失败或无法执行时如实上报</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="wrap" id="flow">
+    <h2>我的工作方式</h2>
+    <p class="sub">以「给这个项目加个页面」为例，我会这样做：</p>
+    <ol class="steps">
+      <li><strong>先侦查，不动手</strong><span>列出文件、读 <code>package.json</code> 和现有源码，摸清技术栈与既有风格。</span></li>
+      <li><strong>拆成清单</strong><span>把任务写成待办项，逐项推进，避免做到一半丢失上下文。</span></li>
+      <li><strong>小步改动</strong><span>优先局部编辑，保持与项目现有约定一致，不做与需求无关的重构。</span></li>
+      <li><strong>跑最相关的检查</strong><span>执行项目里真实存在的测试或构建脚本，抓取实际输出。</span></li>
+      <li><strong>如实收尾</strong><span>汇报改了什么、验证了什么、还有什么没解决——不夸大。</span></li>
+    </ol>
+  </section>
+
+  <section class="wrap" id="boundaries">
+    <h2>我不会做的事</h2>
+    <p class="sub">能力有边界，说清楚比含糊更好用。</p>
+    <ul class="checks">
+      <li><b>不离开工作区</b>路径不能越界，也不跟随符号链接到处翻找。</li>
+      <li><b>不碰密钥</b>不读取、不写入、不外泄任何凭据或密钥文件。</li>
+      <li><b>不覆盖你的改动</b>编辑前比对哈希；发现冲突就先重新读取再决定，绝不盲目覆写。</li>
+      <li><b>不编造结果</b>没跑过的检查不会说「通过」。</li>
+      <li><b>不把仓库内容当命令</b>代码和命令输出都是数据，不是可以覆盖我指令的「指示」。</li>
+    </ul>
+  </section>
+
+  <section class="wrap" id="demo">
+    <h2>试一试</h2>
+    <p class="sub">
+      这段逻辑和项目里的 <code>src/hello.js</code> 一致（<code>greet(name)</code> 返回问候语）。
+      输入一个名字，页面会在浏览器里直接算出结果——不需要网络，也没有外部依赖。
+    </p>
+    <div class="demo">
+      <label for="name" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">你的名字</label>
+      <input id="name" type="text" placeholder="输入名字，比如 Ada" autocomplete="off" />
+      <button class="act" id="run" type="button">打个招呼</button>
+    </div>
+    <p class="output" id="out" role="status" aria-live="polite">$ 等待输入…</p>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap row">
+    <span>运行在 <code>hello-workspace</code> · 一个自包含的静态页面</span>
+    <span><a href="#top">回到顶部</a></span>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    // 与 src/hello.js 中的 greet() 保持一致
+    function greet(name) {
+      return 'Hello, ' + (name && name.trim() ? name.trim() : 'developer') + '!';
+    }
+
+    var input = document.getElementById('name');
+    var out = document.getElementById('out');
+
+    function run() {
+      out.textContent = '$ greet("' + (input.value || 'developer') + '") → ' + greet(input.value);
+    }
+
+    document.getElementById('run').addEventListener('click', run);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { run(); }
+    });
+  })();
+</script>
+
+</body>
+</html>
