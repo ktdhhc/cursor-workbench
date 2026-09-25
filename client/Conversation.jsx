@@ -1,30 +1,33 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowRight, Check, CheckCheck, FileSearch, Folder, GitCompareArrows, LoaderCircle, RotateCcw, ShieldCheck, Sparkles, Terminal, X } from 'lucide-react';
 import { isActive } from './api.js';
+import { useT } from './i18n.jsx';
 import { LiveActivity } from './Activity.jsx';
 import Composer from './Composer.jsx';
 import Markdown from './Markdown.jsx';
 import { CopyButton, ErrorNotice, formatTime, Status } from './ui.jsx';
 
 const suggestions = [
-  { Icon: FileSearch, title: 'Understand this project', prompt: 'Explore this workspace and explain its structure, main entry points, and how to run it. Do not edit files.', mode: 'ask' },
-  { Icon: GitCompareArrows, title: 'Find a bug to fix', prompt: 'Inspect this workspace for a concrete bug. Explain what you find, implement a focused fix, and verify it if possible.', mode: 'agent' },
-  { Icon: CheckCheck, title: 'Add a useful test', prompt: 'Inspect the existing code and test setup. Add a focused test for an important behavior that is not covered, then verify it. Ask for command approval when needed.', mode: 'agent' },
+  { Icon: FileSearch, titleKey: 'welcome.understand', promptKey: 'welcome.understandPrompt', mode: 'ask' },
+  { Icon: GitCompareArrows, titleKey: 'welcome.bug', promptKey: 'welcome.bugPrompt', mode: 'agent' },
+  { Icon: CheckCheck, titleKey: 'welcome.test', promptKey: 'welcome.testPrompt', mode: 'agent' },
 ];
 
 export function Approval({ task, pending, onApprove }) {
+  const t = useT();
   if (!task.approval) return null;
   const busy = pending.has(`approval:${task.id}`);
   return <section className="approval-card" aria-labelledby={`approval-${task.id}`}>
-    <div className="approval-heading"><ShieldCheck size={17} /><h3 id={`approval-${task.id}`}>Command approval required</h3><span className="approval-badge">Waiting</span></div>
-    <p>This command runs on your local host, outside a security sandbox. Review it before allowing execution.</p>
+    <div className="approval-heading"><ShieldCheck size={17} /><h3 id={`approval-${task.id}`}>{t('approval.title')}</h3><span className="approval-badge">{t('approval.waiting')}</span></div>
+    <p>{t('approval.body')}</p>
     <pre className="approval-command"><code>{task.approval.command}</code></pre>
-    <div className="approval-directory"><Folder size={12} /><span>{task.approval.cwd || 'Workspace directory'}</span></div>
-    <div className="approval-actions"><button type="button" className="secondary-button" onClick={() => onApprove(task.id, false)} disabled={busy}><X size={14} />Reject</button><button type="button" className="primary-button" onClick={() => onApprove(task.id, true)} disabled={busy}>{busy ? <LoaderCircle size={14} className="spin" /> : <Check size={14} />}Allow command</button></div>
+    <div className="approval-directory"><Folder size={12} /><span>{task.approval.cwd || t('approval.workspaceDir')}</span></div>
+    <div className="approval-actions"><button type="button" className="secondary-button" onClick={() => onApprove(task.id, false)} disabled={busy}><X size={14} />{t('approval.reject')}</button><button type="button" className="primary-button" onClick={() => onApprove(task.id, true)} disabled={busy}>{busy ? <LoaderCircle size={14} className="spin" /> : <Check size={14} />}{t('approval.allow')}</button></div>
   </section>;
 }
 
 export default function Conversation({ task, selectedId, config, draft, onDraft, taskMode, onMode, inputRef, pending, onSubmit, onStop, onRetry, onApprove, onOpenFile, onShowActivity, onShowChanges, ready }) {
+  const t = useT();
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
   const pinned = useRef(true);
@@ -54,18 +57,18 @@ export default function Conversation({ task, selectedId, config, draft, onDraft,
   if (!selectedId) return <div className="new-task-view">
     <div className="welcome-content">
       <div className="welcome-mark" aria-hidden="true"><Sparkles size={27} strokeWidth={1.35} /></div>
-      <h1>What would you like to work on?</h1>
-      <p className="welcome-description">An agent for your code. An editor when you need it.</p>
+      <h1>{t('welcome.heading')}</h1>
+      <p className="welcome-description">{t('welcome.sub')}</p>
       {composer}
-      <div className="suggestion-list" aria-label="Suggested tasks">
-        {suggestions.map(({ Icon, title, prompt, mode }) => <button type="button" key={title} className="suggestion" onClick={() => { onMode(mode); onDraft(prompt); inputRef.current?.focus(); }}><Icon size={15} /><span>{title}</span><ArrowRight size={13} /></button>)}
+      <div className="suggestion-list" aria-label={t('welcome.heading')}>
+        {suggestions.map(({ Icon, titleKey, promptKey, mode }) => <button type="button" key={titleKey} className="suggestion" onClick={() => { onMode(mode); onDraft(t(promptKey)); inputRef.current?.focus(); }}><Icon size={15} /><span>{t(titleKey)}</span><ArrowRight size={13} /></button>)}
       </div>
-      <div className="welcome-workspace"><Folder size={13} /><span>{config?.workspaceName || 'Loading workspace…'}</span><span className="workspace-safety">Local files · Explicit command approval</span></div>
+      <div className="welcome-workspace"><Folder size={13} /><span>{config?.workspaceName || t('sidebar.localWorkspace')}</span><span className="workspace-safety">{t('welcome.localFiles')}</span></div>
     </div>
-    <div className="welcome-shortcut">Switch to your editor with <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>E</kbd></div>
+    <div className="welcome-shortcut">{t('welcome.switch')} <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>E</kbd></div>
   </div>;
 
-  if (!task) return <div className="conversation-loading"><LoaderCircle className="spin" size={20} /><h2>Loading conversation</h2><p>Waiting for the latest task state.</p></div>;
+  if (!task) return <div className="conversation-loading"><LoaderCircle className="spin" size={20} /><h2>{t('conv.loading')}</h2><p>{t('conv.loadingHint')}</p></div>;
 
   const last = messages[messages.length - 1];
   const pendingChanges = (task.changes || []).filter((change) => change.status === 'pending').length;
@@ -75,26 +78,26 @@ export default function Conversation({ task, selectedId, config, draft, onDraft,
       if (!panel) return;
       pinned.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 90;
       setShowJump(!pinned.current);
-    }} aria-label="Conversation" tabIndex={0}>
+    }} aria-label={t('conv.conversation')} tabIndex={0}>
       <div className="transcript" ref={contentRef}>
-        <div className="conversation-start"><span>Started {task.createdAt ? new Date(task.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}</span><span>{config?.model}</span></div>
-        {messages.length === 0 && <p className="muted transcript-empty">No messages have been recorded for this task yet.</p>}
-        {messages.map((message, index) => <article key={message.id || `${message.role}-${index}`} className={`message message-${message.role}`} aria-label={message.role === 'user' ? 'Your message' : 'Agent response'}>
-          <div className="message-heading">{message.role === 'assistant' && <Sparkles size={14} aria-hidden="true" />}<span>{message.role === 'user' ? 'You' : 'Agent'}</span>{message.createdAt && <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>}{message.role === 'assistant' && message.content && <CopyButton text={message.content} label="Copy response" />}</div>
-          {message.role === 'user' ? <div className="user-message-content">{message.content}</div> : message.content ? <Markdown content={message.content} onOpenFile={onOpenFile} /> : <div className="message-placeholder">{active ? <><LoaderCircle size={14} className="spin" />Thinking…</> : 'No response content was recorded.'}</div>}
+        <div className="conversation-start"><span>{t('conv.started', { date: task.createdAt ? new Date(task.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '' })}</span><span>{config?.model}</span></div>
+        {messages.length === 0 && <p className="muted transcript-empty">{t('conv.noMessages')}</p>}
+        {messages.map((message, index) => <article key={message.id || `${message.role}-${index}`} className={`message message-${message.role}`} aria-label={message.role === 'user' ? t('conv.you') : t('conv.agent')}>
+          <div className="message-heading">{message.role === 'assistant' && <Sparkles size={14} aria-hidden="true" />}<span>{message.role === 'user' ? t('conv.you') : t('conv.agent')}</span>{message.createdAt && <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>}{message.role === 'assistant' && message.content && <CopyButton text={message.content} label={t('conv.copyResponse')} />}</div>
+          {message.role === 'user' ? <div className="user-message-content">{message.content}</div> : message.content ? <Markdown content={message.content} onOpenFile={onOpenFile} /> : <div className="message-placeholder">{active ? <><LoaderCircle size={14} className="spin" />{t('conv.thinking')}</> : t('conv.noResponse')}</div>}
         </article>)}
         <LiveActivity task={task} onShowActivity={onShowActivity} />
-        {active && (last?.role !== 'assistant' || last?.content) && <div className="agent-progress" role="status"><Status status={task.status} /><span>{task.status === 'waiting_approval' ? 'Review the command below to continue.' : 'The agent is working in your workspace.'}</span></div>}
+        {active && (last?.role !== 'assistant' || last?.content) && <div className="agent-progress" role="status"><Status status={task.status} /><span>{task.status === 'waiting_approval' ? t('conv.reviewCommand') : t('conv.agentWorking')}</span></div>}
         <Approval task={task} pending={pending} onApprove={onApprove} />
-        {task.error && <ErrorNotice className="task-error"><strong>Task {task.status === 'cancelled' ? 'stopped' : 'error'}</strong><p>{task.error}</p></ErrorNotice>}
-        {task.status === 'error' && !task.error && <ErrorNotice>The task failed. Review the activity log, then retry or send a follow-up.</ErrorNotice>}
-        {(task.status === 'error' || task.status === 'cancelled') && <div className="recovery-row"><p>{task.status === 'cancelled' ? 'This agent has stopped. Continue from the existing conversation.' : 'Your conversation and file changes are preserved.'}</p><button type="button" className="secondary-button" onClick={() => onRetry(task.id)} disabled={pending.has(`message:${task.id}`) || !config?.configured}>{pending.has(`message:${task.id}`) ? <LoaderCircle size={13} className="spin" /> : <RotateCcw size={13} />}{task.status === 'cancelled' ? 'Continue task' : 'Retry'}</button></div>}
-        {task.status === 'completed' && <div className="completion-row"><Status status="completed" />{pendingChanges > 0 && <button className="text-button" type="button" onClick={onShowChanges}>Review {pendingChanges} {pendingChanges === 1 ? 'change' : 'changes'}<ArrowRight size={13} /></button>}</div>}
-        {task.status === 'waiting_approval' && !task.approval && <ErrorNotice>The agent is waiting for approval, but no command is available. Stop the task, then continue it to recover.</ErrorNotice>}
+        {task.error && <ErrorNotice className="task-error"><strong>{task.status === 'cancelled' ? t('conv.taskStopped') : t('conv.taskError')}</strong><p>{task.error}</p></ErrorNotice>}
+        {task.status === 'error' && !task.error && <ErrorNotice>{t('conv.taskFailed')}</ErrorNotice>}
+        {(task.status === 'error' || task.status === 'cancelled') && <div className="recovery-row"><p>{task.status === 'cancelled' ? t('conv.stoppedBody') : t('conv.errorBody')}</p><button type="button" className="secondary-button" onClick={() => onRetry(task.id)} disabled={pending.has(`message:${task.id}`) || !config?.configured}>{pending.has(`message:${task.id}`) ? <LoaderCircle size={13} className="spin" /> : <RotateCcw size={13} />}{task.status === 'cancelled' ? t('conv.continueTask') : t('conv.retry')}</button></div>}
+        {task.status === 'completed' && <div className="completion-row"><Status status="completed" />{pendingChanges > 0 && <button className="text-button" type="button" onClick={onShowChanges}>{pendingChanges === 1 ? t('conv.reviewOne') : t('conv.reviewMany', { n: pendingChanges })}<ArrowRight size={13} /></button>}</div>}
+        {task.status === 'waiting_approval' && !task.approval && <ErrorNotice>{t('conv.waitingNoCommand')}</ErrorNotice>}
         <div className="transcript-end" />
       </div>
     </div>
-    {showJump && <button type="button" className="jump-latest" onClick={() => { pinned.current = true; setShowJump(false); scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'auto' }); }}><ArrowDown size={13} />Jump to latest</button>}
+    {showJump && <button type="button" className="jump-latest" onClick={() => { pinned.current = true; setShowJump(false); scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'auto' }); }}><ArrowDown size={13} />{t('conv.jumpLatest')}</button>}
     <div className="conversation-composer">{composer}</div>
   </div>;
 }

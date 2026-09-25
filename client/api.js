@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from './i18n.jsx';
 
 export async function request(path, { body, signal, method = body === undefined ? 'GET' : 'POST' } = {}) {
   let response;
@@ -13,12 +14,17 @@ export async function request(path, { body, signal, method = body === undefined 
     });
   } catch (error) {
     if (error.name === 'AbortError') throw error;
-    throw new Error('Cannot reach the local server. Check that the workbench is running and try again.');
+    const network = new Error('Cannot reach the local server. Check that the workbench is running and try again.');
+    network.errorKey = 'errors.network';
+    throw network;
   }
   const text = await response.text();
   let result;
   try { result = text ? JSON.parse(text) : null; } catch {
-    throw new Error(`The server returned an unexpected response (${response.status}). Check the local server and try again.`);
+    const unexpected = new Error(`The server returned an unexpected response (${response.status}). Check the local server and try again.`);
+    unexpected.errorKey = 'errors.badResponse';
+    unexpected.params = { status: response.status };
+    throw unexpected;
   }
   if (!response.ok) throw new Error(result?.error || `Request failed (${response.status} ${response.statusText}).`);
   return result;
@@ -26,7 +32,9 @@ export async function request(path, { body, signal, method = body === undefined 
 
 function validateState(value) {
   if (!value || !value.config || !Array.isArray(value.tasks)) {
-    throw new Error('The server returned an invalid workspace state. Reconnect to try again.');
+    const invalid = new Error('The server returned an invalid workspace state. Reconnect to try again.');
+    invalid.errorKey = 'errors.badState';
+    throw invalid;
   }
   return value;
 }
@@ -34,6 +42,7 @@ function validateState(value) {
 // A fetch that began before a state event must never replace that newer event.
 // Each subscription also owns its requests, so Strict Mode cleanups cannot leak.
 export function useWorkbench() {
+  const t = useT();
   const [state, setState] = useState(null);
   const [connection, setConnection] = useState('connecting');
   const [error, setError] = useState(null);
@@ -87,7 +96,7 @@ export function useWorkbench() {
         commit(next);
         setConnection('live');
       } catch (failure) {
-        setError(failure instanceof SyntaxError ? 'A live update could not be read. Reconnect to get the latest workspace state.' : failure.message);
+        setError(failure instanceof SyntaxError ? t('errors.liveRead') : failure.message);
       }
     };
     const onOpen = () => { if (!disposed) setConnection('live'); };
@@ -105,7 +114,7 @@ export function useWorkbench() {
       source.addEventListener('error', onError);
     } catch (failure) {
       setConnection('offline');
-      setError(`Live updates are unavailable. ${failure.message}`);
+      setError(t('errors.liveUnavailable', { reason: failure.message }));
     }
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);

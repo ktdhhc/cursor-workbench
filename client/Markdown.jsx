@@ -1,6 +1,7 @@
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ArrowUpRight } from 'lucide-react';
+import { useT } from './i18n.jsx';
 import { CopyButton } from './ui.jsx';
 
 function codeText(node) {
@@ -10,14 +11,16 @@ function codeText(node) {
 }
 
 function CodeBlock({ children }) {
+  const t = useT();
   const language = /language-([^\s]+)/.exec(children?.props?.className || '')?.[1];
   return <div className="markdown-code">
-    <div className="code-heading"><span>{language || 'Code'}</span><CopyButton text={codeText(children).replace(/\n$/, '')} label="Copy code" /></div>
+    <div className="code-heading"><span>{language || t('conv.code')}</span><CopyButton text={codeText(children).replace(/\n$/, '')} label={t('conv.copyCode')} /></div>
     <pre>{children}</pre>
   </div>;
 }
 
 export default function Markdown({ content, onOpenFile }) {
+  const t = useT();
   return <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={defaultUrlTransform} components={{
     pre: CodeBlock,
     a: ({ href, children }) => {
@@ -28,8 +31,8 @@ export default function Markdown({ content, onOpenFile }) {
       if (isFile && onOpenFile) return <button type="button" className="inline-file-link" onClick={() => onOpenFile(href.split('#')[0])}>{children}</button>;
       return <span>{children}</span>;
     },
-    img: ({ alt }) => <span className="image-placeholder">{alt ? `Image: ${alt}` : 'Image omitted'} <span>(remote images are not loaded)</span></span>,
+    img: ({ alt }) => <span className="image-placeholder">{alt ? t('md.image', { alt }) : t('md.imageOmitted')} <span>{t('md.remoteNote')}</span></span>,
     table: ({ children }) => <div className="markdown-table"><table>{children}</table></div>,
-    input: ({ checked }) => <input type="checkbox" checked={Boolean(checked)} disabled aria-label={checked ? 'Completed item' : 'Incomplete item'} />,
+    input: ({ checked }) => <input type="checkbox" checked={Boolean(checked)} disabled aria-label={checked ? t('md.itemDone') : t('md.itemOpen')} />,
   }}>{content || ''}</ReactMarkdown></div>;
 }

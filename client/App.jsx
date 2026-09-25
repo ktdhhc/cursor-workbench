@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, Bot, CheckCircle2, Code2, Folder, LoaderCircle, PanelLeft, PanelRight, RefreshCw, ShieldAlert, WifiOff, X } from 'lucide-react';
+import { ArrowUpRight, Bot, CheckCircle2, Code2, Folder, Languages, LoaderCircle, Moon, PanelLeft, PanelRight, RefreshCw, ShieldAlert, Sun, WifiOff, X } from 'lucide-react';
+import { useLangControls, useT } from './i18n.jsx';
 import Artifacts from './Artifacts.jsx';
 import Conversation from './Conversation.jsx';
 import Sidebar from './Sidebar.jsx';
 import { isActive, readPreference, request, savePreference, taskPath, taskTitle, useWorkbench } from './api.js';
+import { initialTheme } from './i18n.jsx';
 import { ErrorNotice, IconButton, Status, useMediaQuery } from './ui.jsx';
 
 function useActions() {
+  const t = useT();
   const [pending, setPending] = useState(new Set());
   const [errors, setErrors] = useState([]);
   const inFlight = useRef(new Map());
@@ -30,7 +33,7 @@ function useActions() {
       return { ok: true, value };
     } catch (failure) {
       if (mounted.current && failure.name !== 'AbortError') {
-        setErrors((previous) => [...previous, { id: ++errorId.current, label, message: failure.message || String(failure) }]);
+        setErrors((previous) => [...previous, { id: ++errorId.current, label, message: failure.errorKey ? t(failure.errorKey, failure.params) : failure.message || String(failure) }]);
       }
       return { ok: false };
     } finally {
@@ -63,11 +66,14 @@ function getEditorUrl(config) {
 }
 
 export default function App() {
+  const t = useT();
+  const { lang, setLang } = useLangControls();
   const { state, connection, error: stateError, refreshing, refresh, reconnect } = useWorkbench();
   const { run, pending, errors, dismiss } = useActions();
   const [windowMode, setWindowMode] = useState(() => readPreference('windowMode', 'agents') === 'editor' ? 'editor' : 'agents');
   const [selectedId, setSelectedId] = useState(() => readPreference('selectedTask', null));
   const [newMode, setNewMode] = useState('agent');
+  const [theme, setTheme] = useState(initialTheme);
   const [drafts, setDrafts] = useState({});
   const [createdModes, setCreatedModes] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 760px)').matches);
@@ -91,6 +97,11 @@ export default function App() {
   const draftKey = selectedId || 'new';
   const taskMode = task?.mode || createdModes[selectedId] || (selectedId ? readPreference(`taskMode.${selectedId}`, null) : newMode);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('workbench.theme', theme); } catch { /* Theme stays per-session without storage. */ }
+  }, [theme]);
+  useEffect(() => { document.title = t('app.title'); }, [t]);
   useEffect(() => { savePreference('windowMode', windowMode); }, [windowMode]);
   useEffect(() => { savePreference('selectedTask', selectedId); }, [selectedId]);
   useEffect(() => {
@@ -114,7 +125,7 @@ export default function App() {
   }, [notice]);
   useEffect(() => {
     if (!editorUrl || editorLoaded) return;
-    const timer = setTimeout(() => setEditorIssue('The editor is taking longer than expected. Check that the local code-server service is running, then reload the editor.'), 25000);
+    const timer = setTimeout(() => setEditorIssue(t('app.editorSlow')), 25000);
     return () => clearTimeout(timer);
   }, [editorUrl, editorLoaded]);
   useEffect(() => () => frameCleanup.current?.(), []);
@@ -189,7 +200,7 @@ export default function App() {
     const contextKey = draftKey;
     const revision = navigationRevision.current;
     const mode = newMode;
-    const result = await run(contextId ? `message:${contextId}` : 'create', contextId ? `Could not send to “${taskTitle(task)}”` : 'Could not start agent', async (signal) => {
+    const result = await run(contextId ? `message:${contextId}` : 'create', contextId ? t('app.couldNotSend', { title: taskTitle(task) }) : t('app.couldNotStart'), async (signal) => {
       const response = await request(contextId ? `${taskPath(contextId)}/messages` : '/api/tasks', { body: contextId ? { content } : { prompt: content, mode }, signal });
       if (!contextId) {
         const created = response?.task || response;
@@ -208,25 +219,25 @@ export default function App() {
   async function stopTask() {
     if (!task) return;
     const id = task.id;
-    await run(`stop:${id}`, `Could not stop “${taskTitle(task)}”`, async (signal) => {
+    await run(`stop:${id}`, t('app.couldNotStop', { title: taskTitle(task) }), async (signal) => {
       await request(`${taskPath(id)}/stop`, { method: 'POST', body: {}, signal });
       await refresh();
     });
   }
   async function retryTask(id) {
-    await run(`message:${id}`, 'Could not continue task', async (signal) => {
+    await run(`message:${id}`, t('app.couldNotContinue'), async (signal) => {
       await request(`${taskPath(id)}/messages`, { body: { content: 'Continue this task from where you left off. Review any previous error before retrying, and preserve existing workspace edits.' }, signal });
       await refresh();
     });
   }
   async function approveTask(id, approved) {
-    await run(`approval:${id}`, approved ? 'Could not approve command' : 'Could not reject command', async (signal) => {
+    await run(`approval:${id}`, approved ? t('app.couldNotApprove') : t('app.couldNotReject'), async (signal) => {
       await request(`${taskPath(id)}/approval`, { body: { approved }, signal });
       await refresh();
     });
   }
   async function reviewChange(id, changeId, action) {
-    const result = await run(`change:${id}:${changeId}`, action === 'revert' ? 'Could not revert change' : 'Could not accept change', async (signal) => {
+    const result = await run(`change:${id}:${changeId}`, action === 'revert' ? t('app.couldNotRevert') : t('app.couldNotAccept'), async (signal) => {
       await request(`${taskPath(id)}/changes/${encodeURIComponent(changeId)}`, { body: { action }, signal });
       await refresh();
     });
@@ -234,17 +245,17 @@ export default function App() {
   }
   async function openFile(path) {
     if (!path) return;
-    const result = await run(`open:${path}`, `Could not open ${path}`, async (signal) => {
+    const result = await run(`open:${path}`, t('app.couldNotOpen', { path }), async (signal) => {
       const response = await request('/api/editor/open', { body: { path }, signal });
       setWindowMode('editor');
       setArtifactsOpen(!artifactsDrawer);
-      if (!response?.id) { setNotice(`Open request sent for ${path}.`); return; }
-      setNotice(`Opening ${path} in the editor…`);
+      if (!response?.id) { setNotice(t('app.openSent', { path })); return; }
+      setNotice(t('app.opening', { path }));
       for (let attempt = 0; attempt < 24; attempt += 1) {
         await pause(650, signal);
         const acknowledgement = await request(`/api/editor/commands/${encodeURIComponent(response.id)}`, { signal });
         if (acknowledgement?.error) throw new Error(acknowledgement.error);
-        if (acknowledgement?.ok) { setNotice(`Opened ${path} in the editor.`); return; }
+        if (acknowledgement?.ok) { setNotice(t('app.opened', { path })); return; }
         if (acknowledgement?.ok === false && !acknowledgement.pending) throw new Error('The editor could not open this file. Check the file path and the editor connection.');
       }
       throw new Error('The file-open request is still queued. Check that the editor and its workspace bridge are connected.');
@@ -264,16 +275,16 @@ export default function App() {
     <header className="titlebar" inert={modalOpen}>
       <div className="titlebar-brand"><span className="brand-mark"><Code2 size={16} strokeWidth={1.8} /></span><span>Workbench</span><span className="local-label">LOCAL</span></div>
       <div className="window-switcher" role="group" aria-label="Workspace window">
-        <button type="button" aria-pressed={windowMode === 'editor'} className={windowMode === 'editor' ? 'is-active' : ''} onClick={() => setWindowMode('editor')} title={editorDisabled ? '编辑器未在本机启用 · 点击查看启用方式' : '编辑器窗口 · Ctrl+Shift+E'}><Code2 size={14} /><span>Editor Window</span></button>
-        <button type="button" aria-pressed={windowMode === 'agents'} className={windowMode === 'agents' ? 'is-active' : ''} onClick={() => setWindowMode('agents')} title="智能体窗口 · Ctrl+Shift+E"><Bot size={14} /><span>Agents Window</span>{activeCount > 0 && <span className="mode-running-count">{activeCount}</span>}</button>
+        <button type="button" aria-pressed={windowMode === 'editor'} className={windowMode === 'editor' ? 'is-active' : ''} onClick={() => setWindowMode('editor')} title={editorDisabled ? t('app.editorDisabledTitle') : t('app.editorTitle')}><Code2 size={14} /><span>{t('app.editor')}</span></button>
+        <button type="button" aria-pressed={windowMode === 'agents'} className={windowMode === 'agents' ? 'is-active' : ''} onClick={() => setWindowMode('agents')} title={t('app.agentsTitle')}><Bot size={14} /><span>{t('app.agents')}</span>{activeCount > 0 && <span className="mode-running-count">{activeCount}</span>}</button>
       </div>
-      <div className="titlebar-meta"><span className={`connection-dot ${connection === 'live' ? 'is-live' : ''}`} title={connection === 'live' ? 'Live updates connected' : 'Live updates disconnected'} /><span className="titlebar-workspace" title={state?.config.workspacePath}>{state?.config.workspaceName || 'Local workspace'}</span><span className="titlebar-shortcut" title="Switch between editor and agents">Ctrl ⇧ E</span></div>
+      <div className="titlebar-meta"><span className={`connection-dot ${connection === 'live' ? 'is-live' : ''}`} title={connection === 'live' ? t('app.live') : t('app.offlineDot')} /><IconButton label={theme === 'light' ? t('app.themeDark') : t('app.themeLight')} onClick={() => setTheme((value) => value === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}</IconButton><IconButton label={t('app.langTitle')} onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}><span className="lang-label">{lang === 'zh' ? 'EN' : '中'}</span></IconButton><span className="titlebar-workspace" title={state?.config.workspacePath}>{state?.config.workspaceName || t('sidebar.localWorkspace')}</span><span className="titlebar-shortcut" title={t('welcome.switch')}>Ctrl ⇧ E</span></div>
     </header>
 
     <div className="global-notices" inert={modalOpen}>
-      {(connection === 'reconnecting' || connection === 'offline') && <div className="network-notice" role="alert"><WifiOff size={15} /><span>{connection === 'offline' ? 'You are offline.' : 'Live connection interrupted.'} Showing the last received state. Reconnecting automatically.</span><button type="button" className="text-button" onClick={reconnect}>Reconnect</button></div>}
+      {(connection === 'reconnecting' || connection === 'offline') && <div className="network-notice" role="alert"><WifiOff size={15} /><span>{connection === 'offline' ? t('app.offline') : t('app.reconnecting')}</span><button type="button" className="text-button" onClick={reconnect}>{t('app.reconnect')}</button></div>}
       {stateError && <ErrorNotice action={<button type="button" className="text-button" onClick={reconnect}>Reconnect</button>}>{stateError}</ErrorNotice>}
-      {state && !state.config.configured && <div className="configuration-notice" role="alert"><ShieldAlert size={15} /><span>The model is not configured. Set the API key in the server environment and restart the local server. The editor is still available.</span></div>}
+      {state && !state.config.configured && <div className="configuration-notice" role="alert"><ShieldAlert size={15} /><span>{t('app.modelNotConfigured')}</span></div>}
       {errors.map((item) => <ErrorNotice key={item.id} onDismiss={() => dismiss(item.id)}><strong>{item.label}</strong><p>{item.message}</p></ErrorNotice>)}
       {notice && <div className="action-notice" role="status"><CheckCircle2 size={14} /><span>{notice}</span><IconButton label="Dismiss notification" onClick={() => setNotice('')}><X size={14} /></IconButton></div>}
     </div>
@@ -293,19 +304,19 @@ export default function App() {
 
       <section className="editor-window" hidden={windowMode !== 'editor'} aria-label="Editor Window">
         {editorUrl ? <>
-          <iframe ref={iframeRef} className="editor-frame" src={editorUrl} title={`Editor — ${state?.config.workspaceName || 'workspace'}`} onLoad={editorDidLoad} onError={() => setEditorIssue('The editor could not be loaded. Check the local code-server service, then reload the editor.')} />
-          {!editorLoaded && !editorIssue && <div className="editor-loading" role="status"><LoaderCircle size={20} className="spin" /><span>Opening your editor…</span><p>Your files and terminal run in the local workspace.</p></div>}
-          {editorIssue && <div className="editor-recovery"><ErrorNotice><strong>Editor connection</strong><p>{editorIssue}</p><div className="editor-recovery-actions"><button type="button" className="secondary-button" onClick={reloadEditor}><RefreshCw size={13} />Reload editor</button><a className="secondary-button" href={editorUrl} target="_blank" rel="noopener noreferrer">Open separately<ArrowUpRight size={13} /></a></div></ErrorNotice></div>}
+          <iframe ref={iframeRef} className="editor-frame" src={editorUrl} title={`Editor — ${state?.config.workspaceName || 'workspace'}`} onLoad={editorDidLoad} onError={() => setEditorIssue(t('app.editorFrameError'))} />
+          {!editorLoaded && !editorIssue && <div className="editor-loading" role="status"><LoaderCircle size={20} className="spin" /><span>{t('app.editorLoading')}</span><p>{t('app.editorLoadingHint')}</p></div>}
+          {editorIssue && <div className="editor-recovery"><ErrorNotice><strong>{t('app.editorConnection')}</strong><p>{editorIssue}</p><div className="editor-recovery-actions"><button type="button" className="secondary-button" onClick={reloadEditor}><RefreshCw size={13} />{t('app.reloadEditor')}</button><a className="secondary-button" href={editorUrl} target="_blank" rel="noopener noreferrer">{t('app.openSeparately')}<ArrowUpRight size={13} /></a></div></ErrorNotice></div>}
         </> : state && state.config.editorEnabled === false ? <div className="editor-unavailable">
           <Code2 size={30} strokeWidth={1.4} />
-          <h2>Editor not enabled on this machine</h2>
-          <p>Agent tasks, file tools and approved terminal commands work without it. To browse and hand-edit files in the real editor, enable it one of these ways:</p>
+          <h2>{t('editor.notEnabledTitle')}</h2>
+          <p>{t('editor.notEnabledBody')}</p>
           <ul className="editor-options">
-            <li><strong>Windows + WSL2:</strong> install WSL with Ubuntu, then run <code>npm run launch</code> again.</li>
-            <li><strong>Windows without WSL:</strong> build the cloned VS Code source natively — see README, “Enable the editor without WSL”.</li>
-            <li><strong>Linux / macOS:</strong> run <code>npm run setup</code>, then <code>npm run launch</code>.</li>
+            <li><strong>{t('editor.wslLabel')}</strong> {t('editor.wslHow')}</li>
+            <li><strong>{t('editor.nativeLabel')}</strong> {t('editor.nativeHow')}</li>
+            <li><strong>{t('editor.linuxLabel')}</strong> {t('editor.linuxHow')}</li>
           </ul>
-        </div> : <div className="editor-unavailable"><Code2 size={30} strokeWidth={1.4} /><h2>{state ? 'Editor URL unavailable' : 'Connecting to your workspace'}</h2><p>{state ? 'The server must provide a same-origin /editor/ URL for this workspace.' : 'The editor will open when the local server is ready.'}</p><button className="secondary-button" type="button" onClick={reconnect}><RefreshCw size={14} />Reconnect</button></div>}
+        </div> : <div className="editor-unavailable"><Code2 size={30} strokeWidth={1.4} /><h2>{state ? t('app.editorUnavailable') : t('app.connecting')}</h2><p>{state ? t('app.editorUnavailableBody') : t('app.editorReadyHint')}</p><button className="secondary-button" type="button" onClick={reconnect}><RefreshCw size={14} />{t('app.reconnect')}</button></div>}
       </section>
     </div>
   </div>;

@@ -364,3 +364,7 @@ Activity is a stream of actual tools, with expandable inputs/outputs and distinc
 - Don't treat derived sidecar tonal strips or overridden component declarations as shipped palette or variant tokens.
 
 **Not canonized or repaired:** the system-font welcome display heading, very small 9px utility text, and the lost Accept/destructive-Revert tints remain build debt, not reusable rules. The tint declarations in the earlier imported workspace stylesheet are overridden by the later generic small-button rules. This documentation-only pass makes no UI repair. The main agent supplied refreshed final captures for status copy and response-copy opacity; those changes are not outstanding drift.
+
+## Light theme
+
+A full light palette ships as `:root[data-theme='light']` overrides in `client/styles.css` (60+ tokens; sage `#55663c` on warm paper `#f7f6f2`, diff red/green retinted for light ground). The theme toggle persists in localStorage and defaults to the system preference; the embedded Code-OSS pane keeps its own VS Code theme, set separately inside the editor. UI language (English/中文) switches through `client/i18n.jsx` with the same persistence; the language button sits beside the theme toggle in the title bar.
