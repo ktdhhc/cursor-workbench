@@ -1,0 +1,59 @@
+{
+  "startedAt": "2026-09-25T03:41:03.595Z",
+  "checks": [
+    "Configured deepseek-flash server is live",
+    "Two real tasks were simultaneously running and completed with isolated histories"
+  ],
+  "tasks": [
+    {
+      "id": "514e0b6e-acd4-4c90-bb34-4ed876de3107",
+      "title": "Parallel agent A",
+      "prompt": "Reply with exactly PARALLEL_A_SUCCESS. Do not use tools.",
+      "status": "completed",
+      "createdAt": "2026-09-25T03:41:03.624Z",
+      "updatedAt": "2026-09-25T03:41:04.295Z",
+      "messages": [
+        {
+          "id": "80a01ece-49f5-4b01-afa7-0fd64c08f45c",
+          "role": "user",
+          "content": "Reply with exactly PARALLEL_A_SUCCESS. Do not use tools."
+        },
+        {
+          "id": "87c175c7-15ae-4719-b553-70d1b50ee20d",
+          "role": "assistant",
+          "content": "PARALLEL_A_SUCCESS"
+        }
+      ],
+      "activities": [],
+      "changes": [],
+      "approval": null,
+      "error": null
+    },
+    {
+      "id": "bb873c46-fb4f-4ce2-8b83-686e924d2070",
+      "title": "Parallel agent B",
+      "prompt": "Reply with exactly PARALLEL_B_SUCCESS. Do not use tools.",
+      "status": "completed",
+      "createdAt": "2026-09-25T03:41:03.624Z",
+      "updatedAt": "2026-09-25T03:41:04.308Z",
+      "messages": [
+        {
+          "id": "fa91eebc-ed57-4f76-9470-13384019b26c",
+          "role": "user",
+          "content": "Reply with exactly PARALLEL_B_SUCCESS. Do not use tools."
+        },
+        {
+          "id": "969ee49b-6c00-400f-894c-e8911c094ddc",
+          "role": "assistant",
+          "content": "PARALLEL_B_SUCCESS"
+        }
+      ],
+      "activities": [],
+      "changes": [],
+      "approval": null,
+      "error": null
+    }
+  ],
+  "ok": true,
+  "completedAt": "2026-09-25T03:41:04.439Z"
+}

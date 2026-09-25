@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export PATH="/home/kaho/.nvm/versions/node/v24.19.0/bin:$PATH"
+export PATH="$HOME/.nvm/versions/node/v24.19.0/bin:$PATH"
 export CURSOR_WORKBENCH_URL="http://127.0.0.1:${PORT:-4317}"
 export CURSOR_WORKBENCH_BRIDGE_TOKEN="$(cat "$ROOT/.state/bridge-token")"
 exec "$ROOT/.runtime/code-server-4.138.0-linux-amd64/bin/code-server" \

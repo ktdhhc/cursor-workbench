@@ -1,0 +1,19 @@
+{
+  "vscode": {
+    "repository": "https://github.com/microsoft/vscode.git",
+    "tag": "1.138.0",
+    "commit": "7debcd0e2acdea1c52de81bf9ee1620444407dda",
+    "localPath": "vendor/vscode",
+    "license": "MIT"
+  },
+  "webRuntime": {
+    "repository": "https://github.com/coder/code-server",
+    "version": "4.138.0",
+    "commit": "59c988c744a240b05b039f57b856a5312f19d5b1",
+    "vscodeVersion": "1.138.0",
+    "asset": "https://github.com/coder/code-server/releases/download/v4.138.0/code-server-4.138.0-linux-amd64.tar.gz",
+    "license": "MIT",
+    "buildMode": "official precompiled Linux x64 release; not locally source-compiled"
+  },
+  "integration": "Real Code-OSS workbench, workspace Node extension, and independently implemented Agents web shell/server"
+}

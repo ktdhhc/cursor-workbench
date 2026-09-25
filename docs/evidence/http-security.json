@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "case": "denied file ../.env",
+      "status": 403
+    },
+    {
+      "case": "denied file .env",
+      "status": 403
+    },
+    {
+      "case": "denied file /etc/passwd",
+      "status": 403
+    },
+    {
+      "case": "cross-origin mutation blocked",
+      "status": 403
+    },
+    {
+      "case": "bridge token required",
+      "status": 403
+    },
+    {
+      "case": "state contains no API credential",
+      "status": "pass"
+    }
+  ]
+}
