@@ -18,7 +18,7 @@ await mkdir(stateDir, { recursive: true });
 let bridgeToken;
 try { bridgeToken = (await readFile(path.join(stateDir, 'bridge-token'), 'utf8')).trim(); }
 catch { bridgeToken = randomBytes(32).toString('hex'); await writeFile(path.join(stateDir, 'bridge-token'), bridgeToken, { mode: 0o600 }); }
-const clients = new Set();
+const clients = new Map();
 const commandQueue = [];
 const acknowledgements = new Map();
 let activeFile = null;
@@ -36,13 +36,6 @@ const config = {
   editorEnabled,
   editorUrl: editorEnabled ? `/editor/?folder=${encodeURIComponent(workspace)}` : null,
 };
-const engine = new AgentEngine({ workspace, stateDir: path.join(stateDir, 'agents'), baseUrl: config.baseUrl, model: config.model, apiKey: process.env.AI_API_KEY, onChange: broadcast,
-  providerResolver: (providerId, modelId) => {
-    const resolved = registry.resolve(providerId, modelId);
-    return resolved ? { baseUrl: resolved.baseUrl, model: resolved.modelId, apiKey: resolved.apiKey } : null;
-  },
-});
-await engine.init();
 const registry = await new ProviderRegistry({
   builtinPath: path.join(root, 'server', 'builtin-providers.json'),
   personalPath: path.join(stateDir, 'providers.json'),
@@ -50,15 +43,49 @@ const registry = await new ProviderRegistry({
   envDefaults: { baseUrl: config.baseUrl, model: config.model, apiKey: process.env.AI_API_KEY },
   onChange: broadcast,
 }).init();
+const engine = new AgentEngine({ workspace, stateDir: path.join(stateDir, 'agents'), baseUrl: config.baseUrl, model: config.model, apiKey: process.env.AI_API_KEY, onChange: broadcast,
+  providerResolver: (providerId, modelId, options) => {
+    const resolved = registry.resolve(providerId, modelId, options);
+    return resolved ? { providerId: resolved.providerId, baseUrl: resolved.baseUrl, model: resolved.modelId, apiKey: resolved.apiKey, requestPatch: resolved.requestPatch, reasoningLevel: resolved.reasoningLevel } : null;
+  },
+  secretSupplier: () => registry.secretValues(),
+});
+await engine.init();
+function modelAvailability() {
+  try {
+    const resolved = registry.resolve();
+    if (!resolved) return { ready: false, providerId: null, modelId: null, issue: 'no-model-selected' };
+    return { ready: true, providerId: resolved.providerId, modelId: resolved.modelId, issue: null };
+  } catch (error) {
+    return { ready: false, providerId: registry.publicState().defaultModelSelection?.providerId ?? null, modelId: registry.publicState().defaultModelSelection?.modelId ?? null, issue: error.message || 'provider-unavailable' };
+  }
+}
 function state() {
-  return { config, tasks: engine.getTasks(), activeFile, bridgeConnected: Date.now() - lastBridgeSeen < 6000, requestedMode };
+  const availability = modelAvailability();
+  return { schemaVersion: 2, config: { ...config, configured: availability.ready }, modelAvailability: availability, tasks: engine.getTasks(), activeFile, bridgeConnected: Date.now() - lastBridgeSeen < 6000, requestedMode };
+}
+function writeClientState(res, client, payload) {
+  if (client.closed) return;
+  if (client.blocked) { client.pending = payload; return; }
+  try {
+    if (!res.write(payload)) {
+      client.blocked = true;
+      res.once('drain', () => {
+        client.blocked = false;
+        if (client.closed || !client.pending) return;
+        const pending = client.pending;
+        client.pending = null;
+        writeClientState(res, client, pending);
+      });
+    }
+  } catch { clients.delete(res); }
 }
 function broadcast() {
   if (broadcastTimer) return;
   broadcastTimer = setTimeout(() => {
     broadcastTimer = null;
     const payload = `event: state\ndata: ${JSON.stringify(state())}\n\n`;
-    for (const client of clients) { if (!client.write(payload)) client.end(); }
+    for (const [res, client] of clients) writeClientState(res, client, payload);
   }, 60);
 }
 
@@ -85,34 +112,34 @@ proxy.on('error', (_err, _req, res) => {
 app.use('/editor', (req, res) => proxy.web(req, res));
 app.use(express.json({ limit: '256kb' }));
 app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
-app.get('/api/health', (_req, res) => res.json({ ok: true, model: config.model, configured: config.configured, editorEnabled: config.editorEnabled, bridgeConnected: state().bridgeConnected }));
+app.get('/api/health', (_req, res) => { const current = state(); res.json({ ok: true, model: current.modelAvailability.modelId || config.model, configured: current.modelAvailability.ready, editorEnabled: config.editorEnabled, bridgeConnected: current.bridgeConnected }); });
 app.get('/api/state', (_req, res) => res.json(state()));
 app.get('/api/events', (req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
-  res.write(`event: state\ndata: ${JSON.stringify(state())}\n\n`);
-  clients.add(res);
-  const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15000);
-  req.on('close', () => { clients.delete(res); clearInterval(heartbeat); });
+  const client = { blocked: false, pending: null, closed: false };
+  clients.set(res, client);
+  writeClientState(res, client, `event: state\ndata: ${JSON.stringify(state())}\n\n`);
+  const heartbeat = setInterval(() => {
+    if (!client.blocked) { try { res.write(': heartbeat\n\n'); } catch { clients.delete(res); } }
+  }, 15000);
+  req.on('close', () => { client.closed = true; clients.delete(res); clearInterval(heartbeat); });
 });
 app.get('/api/files', async (_req, res) => res.json(await engine.files.listFiles()));
 app.get('/api/file', async (req, res) => res.json(await engine.files.readFile(req.query.path)));
 app.post('/api/tasks', async (req, res) => {
-  const { providerId, modelId } = req.body ?? {};
-  if (providerId === undefined && registry.publicState().defaultModelSelection) {
-    const selection = registry.publicState().defaultModelSelection;
-    res.status(201).json(await engine.createTask({ ...req.body, providerId: selection.providerId, modelId: selection.modelId }));
-    return;
-  }
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'A JSON task body is required.' });
   res.status(201).json(await engine.createTask(req.body));
 });
-app.post('/api/tasks/:id/messages', async (req, res) => res.json(await engine.continueTask(req.params.id, req.body.content)));
+app.post('/api/tasks/:id/messages', async (req, res) => res.json(await engine.continueTask(req.params.id, req.body?.content)));
+app.post('/api/tasks/:id/answer', async (req, res) => res.json(await engine.answerTask(req.params.id, req.body?.answer)));
+app.post('/api/tasks/:id/retry', async (req, res) => res.json(await engine.retryTask(req.params.id)));
 app.post('/api/tasks/:id/stop', async (req, res) => res.json(await engine.stopTask(req.params.id)));
 app.post('/api/tasks/:id/approval', async (req, res) => {
   if (typeof req.body.approved !== 'boolean') return res.status(400).json({ error: 'approved must be a boolean.' });
   res.json(await engine.approveTask(req.params.id, req.body.approved));
 });
 app.post('/api/tasks/:id/changes/:changeId', async (req, res) => res.json(await engine.resolveChange(req.params.id, req.params.changeId, req.body.action)));
-app.get('/api/providers', (_req, res) => res.json(registry.publicState()));
+app.get('/api/providers', (_req, res) => res.json({ ...registry.publicState(), modelAvailability: modelAvailability() }));
 app.post('/api/providers', async (req, res) => {
   const { templateId, name, baseUrl, apiKey, modelIds, enabled } = req.body ?? {};
   await registry.createPersonalProvider({ templateId, name, baseUrl, apiKey, modelIds, enabled });
@@ -196,7 +223,9 @@ app.get('/', (_req, res) => res.sendFile(path.join(root, 'dist/index.html')));
 app.use((err, _req, res, _next) => {
   const key = process.env.AI_API_KEY;
   const message = String(err.message || 'Unexpected server error.');
-  res.status(err.status || err.statusCode || 500).json({ error: key ? message.replaceAll(key, '[redacted]') : message });
+  const secrets = [key, ...registry.secretValues()].filter(Boolean);
+  const safeMessage = secrets.reduce((value, secret) => value.replaceAll(secret, '[redacted]'), message);
+  res.status(err.status || err.statusCode || 500).json({ error: safeMessage, code: err.code || 'request-failed', retryable: Boolean(err.retryable) });
 });
 const server = http.createServer(app);
 server.on('upgrade', (req, socket, head) => {
@@ -208,7 +237,7 @@ server.on('upgrade', (req, socket, head) => {
 server.listen(port, '127.0.0.1', () => console.log(`Cursor Workbench: http://127.0.0.1:${port}\nWorkspace: ${workspace}\nModel: ${config.model}`));
 async function shutdown() {
   for (const task of engine.getTasks()) if (['running', 'waiting_approval'].includes(task.status)) await engine.stopTask(task.id);
-  for (const client of clients) client.end();
+  for (const [client] of clients) client.end();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
 }

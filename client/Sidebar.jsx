@@ -1,8 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, Folder, LoaderCircle, PanelLeftClose, Plus, Search, X } from 'lucide-react';
-import { isActive, taskTitle } from './api.js';
+import { ArrowUpRight, Folder, LoaderCircle, Lock, PanelLeftClose, Plus, Search, X } from 'lucide-react';
+import { isActive, isReadOnlyMode, normalizeRunConfig, normalizeVerification, pendingChangeCount, taskTitle } from './api.js';
 import { useT } from './i18n.jsx';
 import { IconButton, Status, timeAgo, useDrawerFocus } from './ui.jsx';
+
+function TaskTags({ task }) {
+  const t = useT();
+  const hasRunConfig = Boolean(task.runConfig || task.mode);
+  const config = hasRunConfig ? normalizeRunConfig(task) : null;
+  const verification = task.verification ? normalizeVerification(task) : null;
+  const pending = pendingChangeCount(task);
+  if (!config && !verification && !pending) return null;
+  return <span className="task-item-tags">
+    {config && <span className="tag" title={t(`run.mode.${config.mode}.desc`)}>{t(`run.mode.${config.mode}`)}</span>}
+    {config && <span className="tag" title={isReadOnlyMode(config.mode) ? t('run.perm.readonly') : t(`run.perm.${config.permissionMode}.desc`)}>{isReadOnlyMode(config.mode) && <Lock size={9} />}{t(`run.perm.${config.permissionMode}`)}</span>}
+    {verification && verification.status !== 'not-run' && <span className={`tag verify-tag is-${verification.status}`}>{t(`verify.${verification.status}`)}</span>}
+    {pending > 0 && <span className="tag tag-pending">{t('sidebar.pendingChanges', { n: pending })}</span>}
+  </span>;
+}
 
 export default function Sidebar({ state, selectedId, onSelect, onNew, open, drawer, onClose, connection, onEditor }) {
   const t = useT();
@@ -18,9 +33,9 @@ export default function Sidebar({ state, selectedId, onSelect, onNew, open, draw
   const activeCount = tasks.filter(isActive).length;
   const matching = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
-    return [...tasks].filter((task) => !needle || `${taskTitle(task)} ${task.prompt || ''} ${(task.messages || []).map((message) => message.content || '').join(' ')}`.toLocaleLowerCase().includes(needle))
+    return [...tasks].filter((task) => !needle || `${taskTitle(task, t)} ${task.prompt || ''} ${(task.messages || []).map((message) => message.content || '').join(' ')}`.toLocaleLowerCase().includes(needle))
       .sort((a, b) => Number(isActive(b)) - Number(isActive(a)) || new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
-  }, [tasks, query]);
+  }, [tasks, query, t]);
   const groups = [
     { label: t('sidebar.inProgress'), tasks: matching.filter(isActive) },
     { label: t('sidebar.recent'), tasks: matching.filter((task) => !isActive(task)) },
@@ -53,11 +68,12 @@ export default function Sidebar({ state, selectedId, onSelect, onNew, open, draw
         {state && tasks.length > 0 && matching.length === 0 && <div className="sidebar-empty"><span>{t('sidebar.noMatch')}</span><p>{t('sidebar.noMatchHint')}</p><button type="button" className="text-button" onClick={() => setQuery('')}>{t('sidebar.clearSearch')}</button></div>}
         {groups.map((group) => group.tasks.length > 0 && <div className="task-group" key={group.label}>
           <div className="task-group-label">{group.label}</div>
-          {group.tasks.map((task) => <button type="button" className={`task-item ${selectedId === task.id ? 'is-selected' : ''}`} key={task.id} onClick={() => onSelect(task.id)} aria-current={selectedId === task.id ? 'page' : undefined} title={taskTitle(task)}>
+          {group.tasks.map((task) => <button type="button" className={`task-item ${selectedId === task.id ? 'is-selected' : ''}`} key={task.id} onClick={() => onSelect(task.id)} aria-current={selectedId === task.id ? 'page' : undefined} title={taskTitle(task, t)}>
             <Status status={task.status} iconOnly />
             <div className="task-item-content">
-              <span className="task-item-title">{taskTitle(task)}</span>
-              <span className="task-item-meta"><span>{task.status === 'waiting_approval' ? t('sidebar.commandApproval') : task.status === 'running' ? t('sidebar.workingInWorkspace') : task.status === 'error' ? t('sidebar.needsAttention') : task.status === 'cancelled' ? t('status.cancelled') : task.status === 'completed' ? t('status.completed') : task.status}</span><time dateTime={task.updatedAt || task.createdAt}>{timeAgo(task.updatedAt || task.createdAt, now, t)}</time></span>
+              <span className="task-item-title">{taskTitle(task, t)}</span>
+              <span className="task-item-meta"><span>{task.status === 'waiting_approval' ? t('sidebar.commandApproval') : task.status === 'waiting_input' ? t('status.waiting_input') : task.status === 'running' ? t('sidebar.workingInWorkspace') : task.status === 'error' ? t('sidebar.needsAttention') : task.status === 'cancelled' ? t('status.cancelled') : task.status === 'completed' ? t('status.completed') : task.status}</span><time dateTime={task.updatedAt || task.createdAt}>{timeAgo(task.updatedAt || task.createdAt, now, t)}</time></span>
+              <TaskTags task={task} />
             </div>
           </button>)}
         </div>)}

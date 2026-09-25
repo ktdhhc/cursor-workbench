@@ -2,6 +2,15 @@ import { readFile, writeFile, rename, mkdir, access } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { fileError } from './files.mjs';
+import {
+  defaultOnlyModelOption,
+  explicitModelOptionMap,
+  normalizeModelOption,
+  normalizeModelOptionMap,
+  publicModelOption,
+  resolveReasoningOption,
+  safeReasoningModelOption,
+} from './model-options.mjs';
 
 /**
  * Provider/model registry replicating ZCode's layered design
@@ -61,7 +70,13 @@ export class ProviderRegistry {
 
   async init() {
     const builtin = await readJson(this.#builtinPath);
-    this.#templates = builtin?.templates ?? [];
+    this.#templates = (builtin?.templates ?? []).map(template => ({
+      ...template,
+      config: {
+        ...template.config,
+        modelOptions: normalizeModelOptionMap(template.config?.modelOptions),
+      },
+    }));
     await this.#importEnvDefaults();
     await this.#loadPersonal();
     await this.#loadCredentials();
@@ -76,7 +91,10 @@ export class ProviderRegistry {
     this.#personal = {
       providerOrder: ['default'],
       providers: {
-        default: { id: 'default', name: 'Default', baseUrl, modelIds: [model], enabled: true, source: 'env' },
+        default: {
+          id: 'default', name: 'Default', baseUrl, modelIds: [model],
+          modelOptions: { [model]: safeReasoningModelOption() }, enabled: true, source: 'env',
+        },
       },
       defaultModelSelection: { providerId: 'default', modelId: model },
     };
@@ -114,6 +132,7 @@ export class ProviderRegistry {
         baseUrl: value.baseUrl,
         enabled: value.enabled ?? true,
         modelIds: Array.isArray(value.modelIds) ? [...value.modelIds] : undefined,
+        modelOptions: normalizeModelOptionMap(value.modelOptions),
         source: value.source ?? 'personal',
       };
     }
@@ -168,6 +187,20 @@ export class ProviderRegistry {
     return [...new Set(base)];
   }
 
+  #modelOption(provider, modelId) {
+    const template = provider.templateId ? this.#template(provider.templateId) : null;
+    const option = provider.modelOptions?.[modelId]
+      ?? provider.modelOptions?.['*']
+      ?? template?.config?.modelOptions?.[modelId]
+      ?? template?.config?.modelOptions?.['*'];
+    if (option) return normalizeModelOption(option);
+    return normalizeModelOption(provider.templateId ? defaultOnlyModelOption() : safeReasoningModelOption());
+  }
+
+  #resolvedModelStates(provider) {
+    return this.#resolvedModels(provider).map(modelId => publicModelOption(modelId, this.#modelOption(provider, modelId)));
+  }
+
   #apiKey(providerId) {
     return this.#credentials[providerId] ?? null;
   }
@@ -188,6 +221,7 @@ export class ProviderRegistry {
         enabled: provider.enabled,
         source: provider.source,
         modelIds: this.#resolvedModels(provider),
+        models: this.#resolvedModelStates(provider),
       }));
     return {
       revision: this.revision(),
@@ -196,6 +230,10 @@ export class ProviderRegistry {
         baseUrl: config?.api?.baseUrl ?? '',
         apiKeyManagementUrl: config?.access?.apiKeyManagementUrl ?? null,
         builtinModelIds: config?.builtinModelIds ?? [],
+        models: (config?.builtinModelIds ?? []).map(modelId => publicModelOption(
+          modelId,
+          config?.modelOptions?.[modelId] ?? config?.modelOptions?.['*'] ?? defaultOnlyModelOption(),
+        )),
       })),
       providers,
       defaultModelSelection: this.#personal.defaultModelSelection,
@@ -206,22 +244,53 @@ export class ProviderRegistry {
     return Buffer.from(JSON.stringify([this.#personal, Object.keys(this.#credentials)])).toString('base64url').slice(0, 24);
   }
 
+  /** Server-only credential source. Returns a detached list and is never part of publicState(). */
+  secretValues() {
+    return Object.values(this.#credentials)
+      .filter(value => typeof value === 'string' && value.length > 0)
+      .map(value => `${value}`);
+  }
+
   /** Resolved credentials for the engine — server-side only, never serialized to the client. */
-  resolve(providerId, modelId) {
-    const provider = providerId ? this.#provider(providerId) : null;
-    if (provider) {
-      if (!provider.enabled) throw providerError('Provider is disabled.', 409);
-      const key = this.#apiKey(provider.id);
-      const baseUrl = provider.baseUrl ?? this.#template(provider.templateId)?.config?.api?.baseUrl;
-      if (!key) throw providerError(`API key for “${provider.name}” is not configured.`, 409);
-      if (!baseUrl) throw providerError(`Base URL for “${provider.name}” is not configured.`, 409);
-      return { providerId: provider.id, modelId: modelId ?? this.#resolvedModels(provider)[0], baseUrl, apiKey: key, name: provider.name };
+  resolve(providerId, modelId, { reasoningLevel } = {}) {
+    if (providerId !== undefined && providerId !== null && providerId !== '') {
+      const provider = this.#provider(providerId);
+      if (!provider) throw providerError('Provider not found.', 404);
+      return this.#resolveProvider(provider, modelId, reasoningLevel);
     }
     const selection = this.#personal.defaultModelSelection;
-    if (selection) return this.resolve(selection.providerId, modelId ?? selection.modelId);
+    if (selection) return this.#resolveProvider(this.#require(selection.providerId), modelId ?? selection.modelId, reasoningLevel);
     const { baseUrl, model, apiKey } = this.#envDefaults;
-    if (baseUrl && model && apiKey) return { providerId: 'default', modelId: modelId ?? model, baseUrl, apiKey, name: 'Default' };
+    if (baseUrl && model && apiKey) {
+      const requestedModel = modelId ?? model;
+      if (modelId !== undefined && modelId !== model) throw providerError('The selected model does not belong to this provider.', 400);
+      let resolvedReasoning;
+      try { resolvedReasoning = resolveReasoningOption(safeReasoningModelOption(), reasoningLevel); }
+      catch (error) { throw providerError(error.message, 400); }
+      return {
+        providerId: 'default', modelId: requestedModel, baseUrl, apiKey, name: 'Default',
+        ...resolvedReasoning,
+      };
+    }
     return null;
+  }
+
+  #resolveProvider(provider, modelId, reasoningLevel) {
+    if (!provider.enabled) throw providerError('Provider is disabled.', 409);
+    const key = this.#apiKey(provider.id);
+    const baseUrl = provider.baseUrl ?? this.#template(provider.templateId)?.config?.api?.baseUrl;
+    if (!key) throw providerError(`API key for “${provider.name}” is not configured.`, 409);
+    if (!baseUrl) throw providerError(`Base URL for “${provider.name}” is not configured.`, 409);
+    const models = this.#resolvedModels(provider);
+    const selectedModel = modelId ?? models[0];
+    if (!selectedModel || !models.includes(selectedModel)) throw providerError('The selected model does not belong to this provider.', 400);
+    let resolvedReasoning;
+    try { resolvedReasoning = resolveReasoningOption(this.#modelOption(provider, selectedModel), reasoningLevel); }
+    catch (error) { throw providerError(error.message, 400); }
+    return {
+      providerId: provider.id, modelId: selectedModel, baseUrl, apiKey: key, name: provider.name,
+      ...resolvedReasoning,
+    };
   }
 
   async createPersonalProvider({ templateId, name, baseUrl, apiKey, modelIds = [], enabled = true } = {}) {
@@ -235,6 +304,11 @@ export class ProviderRegistry {
     const providedModels = [...new Set((modelIds ?? []).map(m => String(m).trim()).filter(Boolean))];
     const modelIdList = [...new Set([...providedModels, ...(template?.config?.builtinModelIds ?? [])])];
     if (!modelIdList.length) throw providerError('At least one model id is required.');
+    const persistedModelOptions = explicitModelOptionMap(
+      modelIdList,
+      template?.config?.modelOptions,
+      template ? defaultOnlyModelOption() : safeReasoningModelOption(),
+    );
     this.#personal.providers[id] = {
       id,
       name: name?.trim() || template?.templateNameMap?.['zh-CN'] || id,
@@ -243,6 +317,7 @@ export class ProviderRegistry {
       enabled,
       // A template's builtin list applies unless the user narrowed it at creation.
       modelIds: providedModels.length ? modelIdList : (template ? undefined : modelIdList),
+      modelOptions: persistedModelOptions,
       source: template ? 'builtin' : 'personal',
     };
     if (!this.#personal.providerOrder.includes(id)) this.#personal.providerOrder.push(id);
@@ -290,6 +365,7 @@ export class ProviderRegistry {
     const models = this.#resolvedModels(provider);
     if (models.includes(model)) throw providerError('This model id already exists.', 409);
     provider.modelIds = [...models, model];
+    provider.modelOptions = { ...(provider.modelOptions ?? {}), [model]: safeReasoningModelOption() };
     await this.#persist();
     this.#onChange();
   }
@@ -297,6 +373,7 @@ export class ProviderRegistry {
   async deletePersonalModel(id, modelId) {
     const provider = this.#require(id);
     provider.modelIds = this.#resolvedModels(provider).filter(model => model !== modelId);
+    if (provider.modelOptions) delete provider.modelOptions[modelId];
     await this.#persist();
     this.#onChange();
   }
@@ -323,6 +400,7 @@ export class ProviderRegistry {
     try {
       await streamChatCompletion({
         baseUrl: resolved.baseUrl, model: resolved.modelId, apiKey: resolved.apiKey,
+        requestPatch: resolved.requestPatch,
         messages: [{ role: 'user', content: 'ping' }], timeoutMs: 20000, fetchImpl: this.#fetchImpl,
       });
       return { success: true };

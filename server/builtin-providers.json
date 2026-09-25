@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 1,
+  "revision": 2,
   "templates": [
     {
       "templateId": "deepseek",
@@ -8,7 +8,18 @@
       "config": {
         "access": { "type": "api-key", "apiKeyManagementUrl": "https://platform.deepseek.com/api_keys" },
         "api": { "type": "openai-chat-completions", "baseUrl": "https://api.deepseek.com/v1" },
-        "builtinModelIds": ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"]
+        "builtinModelIds": ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"],
+        "modelOptions": {
+          "deepseek-flash": {
+            "reasoningLevels": ["default", "low", "medium", "high"],
+            "defaultReasoningLevel": "default",
+            "requestPatches": {
+              "low": { "reasoning_effort": "low" },
+              "medium": { "reasoning_effort": "medium" },
+              "high": { "reasoning_effort": "high" }
+            }
+          }
+        }
       }
     },
     {
@@ -62,7 +73,18 @@
       "config": {
         "access": { "type": "api-key", "apiKeyManagementUrl": "https://openrouter.ai/keys" },
         "api": { "type": "openai-chat-completions", "baseUrl": "https://openrouter.ai/api/v1" },
-        "builtinModelIds": ["openrouter/auto"]
+        "builtinModelIds": ["openrouter/auto"],
+        "modelOptions": {
+          "*": {
+            "reasoningLevels": ["default", "low", "medium", "high"],
+            "defaultReasoningLevel": "default",
+            "requestPatches": {
+              "low": { "reasoning": { "effort": "low" } },
+              "medium": { "reasoning": { "effort": "medium" } },
+              "high": { "reasoning": { "effort": "high" } }
+            }
+          }
+        }
       }
     },
     {
@@ -71,7 +93,18 @@
       "config": {
         "access": { "type": "api-key", "apiKeyManagementUrl": "https://platform.openai.com/api-keys" },
         "api": { "type": "openai-chat-completions", "baseUrl": "https://api.openai.com/v1" },
-        "builtinModelIds": ["gpt-4o", "gpt-4o-mini", "o4-mini"]
+        "builtinModelIds": ["gpt-4o", "gpt-4o-mini", "o4-mini"],
+        "modelOptions": {
+          "*": {
+            "reasoningLevels": ["default", "low", "medium", "high"],
+            "defaultReasoningLevel": "default",
+            "requestPatches": {
+              "low": { "reasoning_effort": "low" },
+              "medium": { "reasoning_effort": "medium" },
+              "high": { "reasoning_effort": "high" }
+            }
+          }
+        }
       }
     },
     {

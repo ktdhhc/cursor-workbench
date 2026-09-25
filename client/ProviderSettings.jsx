@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, KeyRound, LoaderCircle, Plus, Settings2, Trash2, X } from 'lucide-react';
+import { providerReady } from './api.js';
 import { useT } from './i18n.jsx';
 import { IconButton, useDrawerFocus } from './ui.jsx';
 
-export function ModelPicker({ providers, onManage, onSelect }) {
+export function ModelPicker({ providers, onManage, onSelect, selection: selectionProp }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -14,10 +15,10 @@ export function ModelPicker({ providers, onManage, onSelect }) {
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
   }, [open]);
-  const selection = providers?.defaultModelSelection ?? null;
-  const enabled = (providers?.providers ?? []).filter((provider) => provider.enabled && provider.apiKeyConfigured && provider.modelIds.length);
-  const activeProvider = selection ? (providers?.providers ?? []).find((provider) => provider.id === selection.providerId) : null;
-  const activeLabel = activeProvider ? `${selection.modelId} · ${activeProvider.name}` : selection?.modelId ?? t('composer.modelLoading');
+  const selection = selectionProp ?? providers?.defaultModelSelection ?? null;
+  const enabled = (providers?.providers ?? []).filter((provider) => providerReady(provider) && provider.modelIds.length);
+  const activeProvider = selection?.providerId ? (providers?.providers ?? []).find((provider) => provider.id === selection.providerId) : null;
+  const activeLabel = selection?.modelId ? (activeProvider ? `${selection.modelId} · ${activeProvider.name}` : selection.modelId) : t('composer.modelLoading');
   return <div className="model-picker" ref={ref}>
     <button type="button" className="model-label model-picker-button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-haspopup="listbox" title={t('providers.pickTitle')}>
       <span>{activeLabel}</span><ChevronDown size={12} />

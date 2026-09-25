@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, CheckCircle2, Circle, Clock3, Copy, LoaderCircle, Square, X } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, ChevronDown, Circle, CircleHelp, Clock3, Copy, LoaderCircle, Square, X } from 'lucide-react';
 import { useT } from './i18n.jsx';
 
 export const STATUS = {
   running: { label: 'status.working', Icon: LoaderCircle, className: 'running' },
   waiting_approval: { label: 'status.waiting_approval', Icon: Clock3, className: 'waiting' },
+  waiting_input: { label: 'status.waiting_input', Icon: CircleHelp, className: 'waiting' },
   completed: { label: 'status.completed', Icon: CheckCircle2, className: 'completed' },
   error: { label: 'status.error', Icon: AlertCircle, className: 'error' },
   cancelled: { label: 'status.cancelled', Icon: Square, className: 'cancelled' },
@@ -43,6 +44,30 @@ export function useMediaQuery(query) {
     return () => media.removeEventListener('change', change);
   }, [query]);
   return matches;
+}
+
+/**
+ * Small popover menu used by the composer config bar. Renders a chip button;
+ * `children` may be a node or a render function receiving `close()`.
+ */
+export function Menu({ label, title, icon, children, className = '', disabled = false }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [open]);
+  const close = () => setOpen(false);
+  return <div className={`menu ${className}`}>
+    <button type="button" className="menu-button" aria-expanded={open} aria-haspopup="menu" title={title} disabled={disabled} onClick={() => setOpen((value) => !value)}>
+      {icon}<span className="menu-button-label">{label}</span><ChevronDown size={12} aria-hidden="true" />
+    </button>
+    {open && <>
+      <button type="button" className="drawer-backdrop menu-backdrop" tabIndex={-1} aria-label={title} onClick={close} />
+      <div className="menu-popover" role="menu" aria-label={title}>{typeof children === 'function' ? children(close) : children}</div>
+    </>}
+  </div>;
 }
 
 export function useDrawerFocus(ref, active, onClose) {

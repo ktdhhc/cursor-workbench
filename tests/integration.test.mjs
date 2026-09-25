@@ -8,8 +8,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('API never returns server credential configuration', async () => {
   const source = await readFile(path.join(root, 'server/index.mjs'), 'utf8');
-  const config = source.slice(source.indexOf('const config ='), source.indexOf('const engine ='));
+  const config = source.match(/const config = \{[\s\S]*?\n\};/)?.[0];
+  assert.ok(config, 'public config declaration not found');
   assert.ok(!/apiKey\s*:/.test(config));
+  const stateBody = source.match(/function state\(\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(stateBody && !/secretValues|apiKey/.test(stateBody), 'state() must not serialize credentials');
   assert.match(source, /127\.0\.0\.1/);
   assert.match(source, /Cross-origin requests are not allowed/);
 });

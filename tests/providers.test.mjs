@@ -13,7 +13,20 @@ async function registryFixture(envDefaults = { baseUrl: 'https://api.deepseek.co
     templates: [
       { templateId: 'deepseek', templateNameMap: { 'zh-CN': 'DeepSeek', 'en-US': 'DeepSeek' },
         config: { access: { type: 'api-key', apiKeyManagementUrl: 'https://platform.deepseek.com/api_keys' },
-          api: { type: 'openai-chat-completions', baseUrl: 'https://api.deepseek.com/v1' }, builtinModelIds: ['deepseek-chat', 'deepseek-reasoner'] } },
+          api: { type: 'openai-chat-completions', baseUrl: 'https://api.deepseek.com/v1' },
+          builtinModelIds: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-flash'],
+          modelOptions: {
+            'deepseek-flash': { reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default',
+              requestPatches: { low: { reasoning_effort: 'low' }, medium: { reasoning_effort: 'medium' }, high: { reasoning_effort: 'high' } } },
+          } } },
+      { templateId: 'openrouter', templateNameMap: { 'zh-CN': 'OpenRouter', 'en-US': 'OpenRouter' },
+        config: { access: { type: 'api-key' }, api: { type: 'openai-chat-completions', baseUrl: 'https://openrouter.ai/api/v1' }, builtinModelIds: ['openrouter/auto'],
+          modelOptions: { '*': { reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default',
+            requestPatches: { low: { reasoning: { effort: 'low' } }, medium: { reasoning: { effort: 'medium' } }, high: { reasoning: { effort: 'high' } } } } } } },
+      { templateId: 'openai', templateNameMap: { 'zh-CN': 'OpenAI', 'en-US': 'OpenAI' },
+        config: { access: { type: 'api-key' }, api: { type: 'openai-chat-completions', baseUrl: 'https://api.openai.com/v1' }, builtinModelIds: ['o4-mini'],
+          modelOptions: { '*': { reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default',
+            requestPatches: { low: { reasoning_effort: 'low' }, medium: { reasoning_effort: 'medium' }, high: { reasoning_effort: 'high' } } } } } },
       { templateId: 'openai-compatible', templateNameMap: { 'zh-CN': '自定义', 'en-US': 'Custom' },
         config: { access: { type: 'api-key' }, api: { type: 'openai-chat-completions', baseUrl: '' }, builtinModelIds: [] } },
     ],
@@ -49,20 +62,24 @@ test('create from template inherits base URL and models; key stays write-only', 
   await registry.createPersonalProvider({ templateId: 'deepseek', apiKey: 'sk-template' });
   const provider = registry.publicState().providers.find(item => item.id === 'deepseek');
   assert.equal(provider.baseUrl, 'https://api.deepseek.com/v1');
-  assert.deepEqual(provider.modelIds, ['deepseek-chat', 'deepseek-reasoner']);
+  assert.deepEqual(provider.modelIds, ['deepseek-chat', 'deepseek-reasoner', 'deepseek-flash']);
   assert.equal(provider.apiKeyConfigured, true);
   assert.equal(JSON.stringify(registry.publicState()).includes('sk-template'), false);
+  assert.deepEqual(registry.resolve('deepseek', 'deepseek-flash', { reasoningLevel: 'high' }).requestPatch, { reasoning_effort: 'high' });
   await assert.rejects(() => registry.createPersonalProvider({ templateId: 'deepseek' }), /already exists/);
 });
 
 test('custom providers require a valid base URL and at least one model', async () => {
-  const { registry } = await registryFixture();
+  const { registry, dir } = await registryFixture();
   await assert.rejects(() => registry.createPersonalProvider({ name: 'broken' }), /base URL/);
   await assert.rejects(() => registry.createPersonalProvider({ name: 'broken', baseUrl: 'ftp://x' }), /http\(s\) URL/);
   await assert.rejects(() => registry.createPersonalProvider({ name: 'broken', baseUrl: 'https://x.example' }), /model id/);
-  await registry.createPersonalProvider({ name: 'mine', baseUrl: 'https://x.example/v1', modelIds: ['m1'] });
+  await registry.createPersonalProvider({ name: 'mine', baseUrl: 'https://x.example/v1', apiKey: 'sk-mine', modelIds: ['m1'] });
   const provider = registry.publicState().providers.find(item => item.name === 'mine');
   assert.deepEqual(provider.modelIds, ['m1']);
+  assert.deepEqual(registry.resolve(provider.id, 'm1', { reasoningLevel: 'medium' }).requestPatch, { reasoning_effort: 'medium' });
+  const persisted = JSON.parse(await readFile(path.join(dir, 'providers.json'), 'utf8'));
+  assert.deepEqual(persisted.config.providers[provider.id].modelOptions.m1.reasoningLevels, ['default', 'low', 'medium', 'high']);
 });
 
 test('model management rejects duplicates and deleted providers', async () => {
@@ -132,4 +149,81 @@ test('unsupported schema versions are rejected instead of guessed', async () => 
   }).init();
   assert.equal(revived.publicState().providers.length, 0);
   await rm(dir, { recursive: true, force: true });
+});
+
+test('public state exposes model capabilities while preserving modelIds and secrets stay server-only', async () => {
+  const { registry } = await registryFixture();
+  await registry.createPersonalProvider({ templateId: 'deepseek', apiKey: 'sk-template' });
+  const state = registry.publicState();
+  const deepseek = state.providers.find(item => item.id === 'deepseek');
+  assert.deepEqual(deepseek.modelIds, ['deepseek-chat', 'deepseek-reasoner', 'deepseek-flash']);
+  assert.deepEqual(deepseek.models, [
+    { id: 'deepseek-chat', reasoningLevels: ['default'], defaultReasoningLevel: 'default' },
+    { id: 'deepseek-reasoner', reasoningLevels: ['default'], defaultReasoningLevel: 'default' },
+    { id: 'deepseek-flash', reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default' },
+  ]);
+  assert.equal(JSON.stringify(state).includes('sk-template'), false);
+  const secrets = registry.secretValues();
+  assert.ok(secrets.includes('sk-template'));
+  secrets[0] = 'mutated';
+  assert.ok(registry.secretValues().includes('sk-template'), 'callers receive a copy');
+});
+
+test('resolve enforces explicit provider and model membership without falling back', async () => {
+  const { registry } = await registryFixture();
+  await registry.createPersonalProvider({ templateId: 'deepseek', apiKey: 'sk-deepseek' });
+  await registry.setDefaultModelSelection({ providerId: 'deepseek', modelId: 'deepseek-chat' });
+  assert.throws(() => registry.resolve('missing', 'deepseek-chat'), error => error?.status === 404);
+  assert.throws(() => registry.resolve('deepseek', 'not-a-model'), error => error?.status === 400);
+  assert.equal(registry.resolve(undefined, undefined).modelId, 'deepseek-chat');
+});
+
+test('resolve normalizes reasoning levels into exact provider request patches', async () => {
+  const { registry } = await registryFixture();
+  await registry.createPersonalProvider({ templateId: 'deepseek', apiKey: 'sk-deepseek' });
+  await registry.createPersonalProvider({ templateId: 'openrouter', apiKey: 'sk-openrouter' });
+  await registry.createPersonalProvider({ templateId: 'openai', apiKey: 'sk-openai' });
+  await registry.createPersonalProvider({ name: 'custom', baseUrl: 'https://custom.example/v1', apiKey: 'sk-custom', modelIds: ['custom-model'] });
+
+  assert.deepEqual(registry.resolve('deepseek', 'deepseek-flash', { reasoningLevel: 'high' }).requestPatch, { reasoning_effort: 'high' });
+  assert.deepEqual(registry.resolve('openrouter', 'openrouter/auto', { reasoningLevel: 'medium' }).requestPatch, { reasoning: { effort: 'medium' } });
+  assert.deepEqual(registry.resolve('openai', 'o4-mini', { reasoningLevel: 'low' }).requestPatch, { reasoning_effort: 'low' });
+  const custom = registry.publicState().providers.find(item => item.name === 'custom');
+  assert.deepEqual(registry.resolve(custom.id, 'custom-model', { reasoningLevel: 'low' }).requestPatch, { reasoning_effort: 'low' });
+  const defaultResolution = registry.resolve('deepseek', 'deepseek-flash');
+  assert.equal(defaultResolution.reasoningLevel, 'default');
+  assert.deepEqual(defaultResolution.requestPatch, {});
+  assert.throws(() => registry.resolve('deepseek', 'deepseek-chat', { reasoningLevel: 'high' }), error => error?.status === 400);
+  assert.throws(() => registry.resolve('deepseek', 'deepseek-flash', { reasoningLevel: 'extreme' }), error => error?.status === 400);
+});
+
+test('connectivity probes forward the resolved request patch', async () => {
+  const { registry } = await registryFixture();
+  await registry.createPersonalProvider({ templateId: 'openrouter', apiKey: 'sk-openrouter' });
+  let seen;
+  const result = await registry.testConnectivity({ providerId: 'openrouter', modelId: 'openrouter/auto' }, {
+    streamChatCompletion: async options => { seen = options; },
+  });
+  assert.equal(result.success, true);
+  assert.deepEqual(seen.requestPatch, {});
+});
+
+test('legacy personal configs load and persist model options when models change', async () => {
+  const { dir, builtinPath } = await registryFixture({});
+  const personalPath = path.join(dir, 'legacy-providers.json');
+  const credentialsPath = path.join(dir, 'legacy-credentials.json');
+  await writeFile(personalPath, JSON.stringify({ schemaVersion: 1, config: {
+    providerOrder: ['legacy'],
+    providers: { legacy: { id: 'legacy', name: 'Legacy', baseUrl: 'https://legacy.example/v1', modelIds: ['legacy-model'], enabled: true } },
+    defaultModelSelection: { providerId: 'legacy', modelId: 'legacy-model' },
+  } }), 'utf8');
+  await writeFile(credentialsPath, JSON.stringify({ legacy: 'sk-legacy' }), 'utf8');
+  const registry = await new ProviderRegistry({ builtinPath, personalPath, credentialsPath, envDefaults: {} }).init();
+  assert.deepEqual(registry.publicState().providers[0].models, [
+    { id: 'legacy-model', reasoningLevels: ['default', 'low', 'medium', 'high'], defaultReasoningLevel: 'default' },
+  ]);
+  await registry.addPersonalModel('legacy', 'legacy-next');
+  const persisted = JSON.parse(await readFile(personalPath, 'utf8'));
+  assert.deepEqual(persisted.config.providers.legacy.modelOptions['legacy-next'].reasoningLevels, ['default', 'low', 'medium', 'high']);
+  assert.equal(JSON.stringify(persisted).includes('sk-legacy'), false);
 });

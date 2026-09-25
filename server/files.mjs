@@ -67,16 +67,26 @@ function checkExpected(actual, expected) {
 
 export class WorkspaceFiles {
   #secrets;
+  #secretSupplier;
 
-  constructor({ workspace, secrets = [] }) {
+  constructor({ workspace, secrets = [], secretSupplier } = {}) {
     if (!workspace) throw fileError('Workspace is required.');
+    if (secretSupplier !== undefined && typeof secretSupplier !== 'function') throw fileError('secretSupplier must be a function.');
     this.workspace = path.resolve(workspace);
     this.root = null;
     this.#secrets = secrets.filter(value => typeof value === 'string' && value.length > 0);
+    this.#secretSupplier = secretSupplier;
+  }
+
+  #currentSecrets() {
+    let supplied = [];
+    try { supplied = this.#secretSupplier?.() ?? []; } catch { supplied = []; }
+    if (!Array.isArray(supplied)) supplied = [];
+    return [...new Set([...this.#secrets, ...supplied].filter(value => typeof value === 'string' && value.length > 0))];
   }
 
   #checkSecrets(content) {
-    if (this.#secrets.some(secret => content.includes(secret)) || /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/.test(content)) {
+    if (this.#currentSecrets().some(secret => content.includes(secret)) || /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/.test(content)) {
       throw fileError('Credential content is not exposed or written by workspace tools.', 403);
     }
   }
@@ -211,6 +221,37 @@ export class WorkspaceFiles {
     return { matches, scanned, truncated };
   }
 
+  async findFiles({ pattern, path: value = '.', limit = 200 } = {}) {
+    if (typeof pattern !== 'string' || !pattern.trim() || pattern.length > 512) throw fileError('File pattern must contain 1–512 characters.');
+    limit = Math.max(1, Math.min(1000, Number(limit) || 200));
+    const needle = pattern.trim().replaceAll('\\', '/').toLocaleLowerCase();
+    const wildcard = /[*?]/.test(needle);
+    const escaped = needle.replace(/[.+^${}()|[\]\\]/g, '\\$&').replaceAll('*', '.*').replaceAll('?', '.');
+    const matcher = wildcard ? new RegExp(`^${escaped}$`, 'i') : null;
+    const target = await this.resolvePath(value, { allowRoot: true });
+    const files = [];
+    let scanned = 0;
+    let truncated = false;
+    const visit = async (relative, level) => {
+      if (files.length >= limit || scanned >= 10000 || level > 32) { truncated = true; return; }
+      const resolved = await this.resolvePath(relative, { allowRoot: true });
+      const entries = await readdir(resolved.absolute, { withFileTypes: true });
+      entries.sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name));
+      for (const entry of entries) {
+        const name = relative === '.' ? entry.name : `${relative}/${entry.name}`;
+        if (isProtectedPath(name) || entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) continue;
+        scanned++;
+        const normalized = name.toLocaleLowerCase();
+        const basename = entry.name.toLocaleLowerCase();
+        if (entry.isFile() && (matcher ? matcher.test(normalized) || matcher.test(basename) : normalized.includes(needle))) files.push({ path: name });
+        if (files.length >= limit || scanned >= 10000) { truncated = true; break; }
+        if (entry.isDirectory()) await visit(name, level + 1);
+      }
+    };
+    await visit(target.path, 0);
+    return { files, scanned, truncated };
+  }
+
   async writeFile({ path: value, content, expectedHash, signal }) {
     return this.#edit(value, expectedHash, () => content, signal);
   }
@@ -224,6 +265,13 @@ export class WorkspaceFiles {
       if (!replaceAll && before.indexOf(oldText, first + oldText.length) >= 0) throw fileError('Text occurs more than once. Use a unique selection or replaceAll.', 409);
       return replaceAll ? before.split(oldText).join(newText) : before.slice(0, first) + newText + before.slice(first + oldText.length);
     }, signal);
+  }
+
+  async deleteFile({ path: value, expectedHash, signal }) {
+    return this.#edit(value, expectedHash, before => {
+      if (before === null) throw fileError('File not found.', 404);
+      return null;
+    }, signal, true);
   }
 
   // Used for conflict-aware undo, including undoing newly created files.

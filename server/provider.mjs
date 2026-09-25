@@ -1,5 +1,8 @@
+import { clonePlainJson } from './model-options.mjs';
+
 const MAX_EVENT_BYTES = 1024 * 1024;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const PROTECTED_REQUEST_FIELDS = new Set(['model', 'messages', 'tools', 'tool_choice', 'stream']);
 
 export class ProviderError extends Error {
   constructor(message, status = 502) {
@@ -41,6 +44,31 @@ function abortable(promise, signal) {
   });
 }
 
+function isPlainObject(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function deepMergeJson(target, patch) {
+  for (const [key, value] of Object.entries(patch)) {
+    if (isPlainObject(value) && isPlainObject(target[key])) deepMergeJson(target[key], value);
+    else target[key] = value;
+  }
+  return target;
+}
+
+function applyRequestPatch(body, requestPatch) {
+  let patch;
+  try { patch = clonePlainJson(requestPatch ?? {}, 'requestPatch'); }
+  catch (error) { throw new ProviderError(`Invalid provider request patch: ${error.message}`, 400); }
+  if (!isPlainObject(patch)) throw new ProviderError('Provider request patch must be a plain JSON object.', 400);
+  for (const field of PROTECTED_REQUEST_FIELDS) {
+    if (Object.hasOwn(patch, field)) throw new ProviderError(`Provider request patch cannot override ${field}.`, 400);
+  }
+  return deepMergeJson(body, patch);
+}
+
 async function boundedBody(response, maxBytes, signal) {
   const reader = response.body?.getReader();
   if (!reader) return '';
@@ -60,7 +88,7 @@ async function boundedBody(response, maxBytes, signal) {
 
 /** One real OpenAI-compatible streaming turn. Internal message preserves reasoning_content. */
 export async function streamChatCompletion({
-  baseUrl, model, apiKey, messages, tools = [], signal, onDelta = () => {},
+  baseUrl, model, apiKey, messages, tools = [], requestPatch = {}, signal, onDelta = () => {},
   fetchImpl = globalThis.fetch, timeoutMs = 120_000,
 }) {
   if (typeof model !== 'string' || !model.trim() || typeof apiKey !== 'string' || !apiKey.trim()) {
@@ -78,6 +106,7 @@ export async function streamChatCompletion({
     controller.signal.throwIfAborted();
     const body = { model, messages, stream: true };
     if (tools.length) { body.tools = tools; body.tool_choice = 'auto'; }
+    applyRequestPatch(body, requestPatch);
     const response = await abortable(fetchImpl(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', Authorization: `Bearer ${apiKey}` },

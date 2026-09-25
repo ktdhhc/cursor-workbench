@@ -161,10 +161,129 @@ export function activeModelLabel(providers, fallback) {
   if (!provider) return selection.modelId;
   return `${selection.modelId} · ${provider.name}`;
 }
-export const isActive = (task) => task?.status === 'running' || task?.status === 'waiting_approval';
+export const isActive = (task) => ['running', 'waiting_approval', 'waiting_input'].includes(task?.status);
 
-export function taskTitle(task) {
-  return task?.title || task?.prompt?.split('\n')[0] || 'Untitled agent';
+/** The agent is paused on a question; the next composer submission answers it. */
+export const isWaitingInput = (task) => task?.status === 'waiting_input';
+
+export function taskTitle(task, t) {
+  return task?.title || task?.prompt?.split('\n')[0] || (t ? t('app.untitled') : 'Untitled agent');
+}
+
+export const MODES = ['agent', 'ask', 'plan', 'debug'];
+export const PERMISSIONS = ['build', 'edit', 'yolo'];
+export const REASONING_LEVELS = ['low', 'medium', 'high'];
+export const VERIFICATION_STATUSES = ['not-run', 'running', 'passed', 'failed', 'blocked'];
+
+/** Ask and Plan never edit files or run commands, regardless of the picked permission. */
+export const isReadOnlyMode = (mode) => mode === 'ask' || mode === 'plan';
+
+/**
+ * A provider counts as usable when its availability probe says so; older
+ * servers only expose `enabled` + `apiKeyConfigured`, which we fall back to.
+ */
+export function providerReady(provider) {
+  if (!provider || provider.enabled === false) return false;
+  const ready = provider.modelAvailability?.ready;
+  if (typeof ready === 'boolean') return ready;
+  return Boolean(provider.apiKeyConfigured);
+}
+
+/** Workspace-level readiness: prefer modelAvailability over config.configured. */
+export function modelReady(state, providers) {
+  const fromState = state?.modelAvailability?.ready;
+  if (typeof fromState === 'boolean') return fromState;
+  const fromProviders = providers?.modelAvailability?.ready;
+  if (typeof fromProviders === 'boolean') return fromProviders;
+  return Boolean(state?.config?.configured);
+}
+
+export function modelEntry(providers, providerId, modelId) {
+  const provider = providers?.providers?.find((item) => item.id === providerId);
+  if (!provider) return null;
+  if (Array.isArray(provider.models)) return provider.models.find((model) => model.id === modelId) || null;
+  return null;
+}
+
+/** Reasoning levels a model actually supports; empty means "default only". */
+export function reasoningLevelsFor(providers, providerId, modelId) {
+  const levels = modelEntry(providers, providerId, modelId)?.reasoningLevels;
+  if (!Array.isArray(levels)) return [];
+  return levels.filter((level) => REASONING_LEVELS.includes(level));
+}
+
+export function reasoningLabelKey(level) {
+  return REASONING_LEVELS.includes(level) ? `run.reasoning.${level}` : 'run.reasoning.default';
+}
+
+export function defaultModelSelection(providers) {
+  const selection = providers?.defaultModelSelection;
+  if (selection?.providerId && selection?.modelId) return { providerId: selection.providerId, modelId: selection.modelId };
+  const provider = (providers?.providers || []).find((item) => providerReady(item) && (item.modelIds?.length || item.models?.length));
+  const modelId = provider ? provider.modelIds?.[0] || provider.models?.[0]?.id : null;
+  return provider && modelId ? { providerId: provider.id, modelId } : { providerId: null, modelId: null };
+}
+
+/**
+ * Merge a (possibly stale or hand-edited) persisted run config with what the
+ * providers actually offer, so a stored model or reasoning level that no
+ * longer exists quietly falls back instead of producing a broken payload.
+ */
+export function sanitizeRunConfig(saved, providers) {
+  const mode = MODES.includes(saved?.mode) ? saved.mode : 'agent';
+  const permissionMode = PERMISSIONS.includes(saved?.permissionMode) ? saved.permissionMode : 'build';
+  const requested = saved?.modelSelection && typeof saved.modelSelection === 'object' ? saved.modelSelection : {};
+  const provider = providers?.providers?.find((item) => item.id === requested.providerId);
+  const hasModel = Boolean(provider && requested.modelId
+    && (provider.modelIds?.includes(requested.modelId) || provider.models?.some((model) => model.id === requested.modelId)));
+  const base = hasModel ? { providerId: requested.providerId, modelId: requested.modelId } : defaultModelSelection(providers);
+  const level = requested.options?.reasoningLevel;
+  const options = reasoningLevelsFor(providers, base.providerId, base.modelId).includes(level) ? { reasoningLevel: level } : {};
+  return { mode, permissionMode, planEnabled: mode === 'plan', modelSelection: { ...base, options } };
+}
+
+/** Read the run configuration of an existing task, tolerating legacy fields. */
+export function normalizeRunConfig(task) {
+  const raw = task?.runConfig && typeof task.runConfig === 'object' ? task.runConfig : {};
+  const mode = MODES.includes(raw.mode) ? raw.mode : MODES.includes(task?.mode) ? task.mode : 'agent';
+  const permissionMode = PERMISSIONS.includes(raw.permissionMode) ? raw.permissionMode : 'build';
+  const selection = raw.modelSelection && typeof raw.modelSelection === 'object' ? raw.modelSelection : {};
+  const reasoningLevel = selection.options?.reasoningLevel;
+  return {
+    mode,
+    permissionMode,
+    planEnabled: typeof raw.planEnabled === 'boolean' ? raw.planEnabled : mode === 'plan',
+    modelSelection: {
+      providerId: selection.providerId || null,
+      modelId: selection.modelId || task?.model || null,
+      options: REASONING_LEVELS.includes(reasoningLevel) ? { reasoningLevel } : {},
+    },
+  };
+}
+
+export function normalizeVerification(task) {
+  const raw = task?.verification && typeof task.verification === 'object' ? task.verification : {};
+  return {
+    status: VERIFICATION_STATUSES.includes(raw.status) ? raw.status : 'not-run',
+    checks: Array.isArray(raw.checks) ? raw.checks : [],
+  };
+}
+
+export function pendingChangeCount(task) {
+  return (task?.changes || []).filter((change) => change.status === 'pending').length;
+}
+
+export function todoSummary(task) {
+  const todos = Array.isArray(task?.todos) ? task.todos : [];
+  const done = todos.filter((todo) => todoStatus(todo) === 'done').length;
+  return { done, total: todos.length };
+}
+
+export function todoStatus(todo) {
+  const status = String(todo?.status ?? (todo?.done ? 'done' : 'pending')).toLowerCase();
+  if (/done|complete/.test(status)) return 'done';
+  if (/progress|active|running|doing/.test(status)) return 'doing';
+  return 'pending';
 }
 
 export function readPreference(key, fallback) {
@@ -175,5 +294,19 @@ export function savePreference(key, value) {
   try {
     if (value === null) sessionStorage.removeItem(`workbench.${key}`);
     else sessionStorage.setItem(`workbench.${key}`, value);
+  } catch { /* The app remains usable when browser storage is unavailable. */ }
+}
+
+export function readJsonPreference(key, fallback) {
+  try {
+    const raw = sessionStorage.getItem(`workbench.${key}`);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch { return fallback; }
+}
+
+export function saveJsonPreference(key, value) {
+  try {
+    if (value === null) sessionStorage.removeItem(`workbench.${key}`);
+    else sessionStorage.setItem(`workbench.${key}`, JSON.stringify(value));
   } catch { /* The app remains usable when browser storage is unavailable. */ }
 }

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, Bot, CheckCircle2, Code2, Folder, Languages, LoaderCircle, Moon, PanelLeft, PanelRight, RefreshCw, ShieldAlert, Sun, WifiOff, X } from 'lucide-react';
 import { useLangControls, useT } from './i18n.jsx';
 import Artifacts from './Artifacts.jsx';
-import Conversation from './Conversation.jsx';
+import Conversation, { RunConfigBadges, VerificationChip } from './Conversation.jsx';
 import Sidebar from './Sidebar.jsx';
-import { isActive, readPreference, request, savePreference, taskPath, taskTitle, useProviders, useWorkbench } from './api.js';
+import { isActive, modelReady, normalizeRunConfig, normalizeVerification, pendingChangeCount, readJsonPreference, readPreference, request, sanitizeRunConfig, saveJsonPreference, savePreference, taskPath, taskTitle, todoSummary, useProviders, useWorkbench } from './api.js';
 import ProviderSettings from './ProviderSettings.jsx';
 import { initialTheme } from './i18n.jsx';
 import { ErrorNotice, IconButton, Status, useMediaQuery } from './ui.jsx';
@@ -75,10 +75,10 @@ export default function App() {
   const { run, pending, errors, dismiss } = useActions();
   const [windowMode, setWindowMode] = useState(() => readPreference('windowMode', 'agents') === 'editor' ? 'editor' : 'agents');
   const [selectedId, setSelectedId] = useState(() => readPreference('selectedTask', null));
-  const [newMode, setNewMode] = useState('agent');
+  const [savedRunConfig, setSavedRunConfig] = useState(() => readJsonPreference('newRunConfig', null));
   const [theme, setTheme] = useState(initialTheme);
   const [drafts, setDrafts] = useState({});
-  const [createdModes, setCreatedModes] = useState({});
+  const [createdConfigs, setCreatedConfigs] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 760px)').matches);
   const [artifactsOpen, setArtifactsOpen] = useState(() => window.matchMedia('(min-width: 1180px)').matches);
   const [artifactsTab, setArtifactsTab] = useState('changes');
@@ -98,7 +98,25 @@ export default function App() {
   const editorUrl = useMemo(() => getEditorUrl(state?.config), [state?.config.editorUrl, state?.config.workspacePath]);
   const editorDisabled = Boolean(state && state.config.editorEnabled === false);
   const draftKey = selectedId || 'new';
-  const taskMode = task?.mode || createdModes[selectedId] || (selectedId ? readPreference(`taskMode.${selectedId}`, null) : newMode);
+  const draftValue = drafts[draftKey] ?? readPreference(`draft.${draftKey}`, '');
+  const canRun = modelReady(state, providers);
+  // New-task configuration: the user's picks sanitized against the providers actually available.
+  const newRunConfig = useMemo(() => sanitizeRunConfig(savedRunConfig, providers), [savedRunConfig, providers]);
+  const updateRunConfig = useCallback((next) => {
+    setSavedRunConfig(next);
+    saveJsonPreference('newRunConfig', next);
+  }, []);
+  // Existing tasks show the run configuration they were created with, read-only.
+  const taskRunConfig = useMemo(() => {
+    if (!task) return null;
+    if (task.runConfig) return normalizeRunConfig(task);
+    const created = createdConfigs[selectedId] || readJsonPreference(`taskRunConfig.${selectedId}`, null);
+    if (created) return sanitizeRunConfig(created, providers);
+    if (task.mode || task.model) return normalizeRunConfig(task);
+    return null;
+  }, [task, selectedId, createdConfigs, providers]);
+  const pendingChanges = pendingChangeCount(task);
+  const todos = todoSummary(task);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -194,22 +212,42 @@ export default function App() {
     } catch { /* A cross-origin editor cannot forward shortcuts; the shared mode bar remains available. */ }
   }
 
-  const updateDraft = (value) => setDrafts((previous) => ({ ...previous, [draftKey]: value }));
+  const updateDraft = (value) => {
+    setDrafts((previous) => ({ ...previous, [draftKey]: value }));
+    savePreference(`draft.${draftKey}`, value);
+  };
   async function submitMessage() {
-    const content = (drafts[draftKey] || '').trim();
-    if (!content || !state?.config.configured || isActive(task)) return;
-    const originalDraft = drafts[draftKey];
+    const content = (drafts[draftKey] ?? draftValue).trim();
+    const answering = task?.status === 'waiting_input';
+    if (!content || !canRun || (isActive(task) && !answering)) return;
+    const originalDraft = drafts[draftKey] ?? draftValue;
     const contextId = selectedId;
     const contextKey = draftKey;
     const revision = navigationRevision.current;
-    const mode = newMode;
-    const result = await run(contextId ? `message:${contextId}` : 'create', contextId ? t('app.couldNotSend', { title: taskTitle(task) }) : t('app.couldNotStart'), async (signal) => {
-      const response = await request(contextId ? `${taskPath(contextId)}/messages` : '/api/tasks', { body: contextId ? { content } : { prompt: content, mode }, signal });
+    // Freeze the configuration at submission time so later edits to the
+    // composer (or global defaults) never mutate what this task runs with.
+    const frozen = {
+      mode: newRunConfig.mode,
+      permissionMode: newRunConfig.permissionMode,
+      planEnabled: newRunConfig.mode === 'plan',
+      modelSelection: {
+        providerId: newRunConfig.modelSelection.providerId,
+        modelId: newRunConfig.modelSelection.modelId,
+        options: { ...(newRunConfig.modelSelection.options?.reasoningLevel ? { reasoningLevel: newRunConfig.modelSelection.options.reasoningLevel } : {}) },
+      },
+    };
+    const label = contextId ? (answering ? t('app.couldNotAnswer') : t('app.couldNotSend', { title: taskTitle(task, t) })) : t('app.couldNotStart');
+    const result = await run(contextId ? `message:${contextId}` : 'create', label, async (signal) => {
+      const response = await request(
+        contextId ? (answering ? `${taskPath(contextId)}/answer` : `${taskPath(contextId)}/messages`) : '/api/tasks',
+        { body: contextId ? (answering ? { answer: content } : { content }) : { prompt: content, mode: frozen.mode, runConfig: frozen }, signal },
+      );
       if (!contextId) {
         const created = response?.task || response;
-        if (!created?.id) throw new Error('The task was submitted, but the server did not return its ID. Refresh the task list before trying again.');
-        savePreference(`taskMode.${created.id}`, mode);
-        setCreatedModes((previous) => ({ ...previous, [created.id]: mode }));
+        if (!created?.id) throw new Error(t('errors.noTaskId'));
+        savePreference(`taskMode.${created.id}`, frozen.mode);
+        saveJsonPreference(`taskRunConfig.${created.id}`, frozen);
+        setCreatedConfigs((previous) => ({ ...previous, [created.id]: frozen }));
         if (revision === navigationRevision.current) {
           setSelectedId(created.id);
           if (sidebarDrawer) setSidebarOpen(false);
@@ -217,19 +255,26 @@ export default function App() {
       }
       await refresh();
     });
-    if (result.ok) setDrafts((previous) => previous[contextKey] === originalDraft ? { ...previous, [contextKey]: '' } : previous);
+    if (result.ok) {
+      setDrafts((previous) => {
+        const current = previous[contextKey];
+        if (current !== undefined && current !== originalDraft) return previous; // the user kept typing
+        savePreference(`draft.${contextKey}`, '');
+        return { ...previous, [contextKey]: '' };
+      });
+    }
   }
   async function stopTask() {
     if (!task) return;
     const id = task.id;
-    await run(`stop:${id}`, t('app.couldNotStop', { title: taskTitle(task) }), async (signal) => {
+    await run(`stop:${id}`, t('app.couldNotStop', { title: taskTitle(task, t) }), async (signal) => {
       await request(`${taskPath(id)}/stop`, { method: 'POST', body: {}, signal });
       await refresh();
     });
   }
   async function retryTask(id) {
-    await run(`message:${id}`, t('app.couldNotContinue'), async (signal) => {
-      await request(`${taskPath(id)}/messages`, { body: { content: 'Continue this task from where you left off. Review any previous error before retrying, and preserve existing workspace edits.' }, signal });
+    await run(`retry:${id}`, t('app.couldNotContinue'), async (signal) => {
+      await request(`${taskPath(id)}/retry`, { method: 'POST', body: {}, signal });
       await refresh();
     });
   }
@@ -259,9 +304,9 @@ export default function App() {
         const acknowledgement = await request(`/api/editor/commands/${encodeURIComponent(response.id)}`, { signal });
         if (acknowledgement?.error) throw new Error(acknowledgement.error);
         if (acknowledgement?.ok) { setNotice(t('app.opened', { path })); return; }
-        if (acknowledgement?.ok === false && !acknowledgement.pending) throw new Error('The editor could not open this file. Check the file path and the editor connection.');
+        if (acknowledgement?.ok === false && !acknowledgement.pending) throw new Error(t('errors.editorOpen'));
       }
-      throw new Error('The file-open request is still queued. Check that the editor and its workspace bridge are connected.');
+      throw new Error(t('errors.editorQueued'));
     });
     if (!result.ok) setNotice('');
   }
@@ -286,10 +331,10 @@ export default function App() {
 
     <div className="global-notices" inert={modalOpen}>
       {(connection === 'reconnecting' || connection === 'offline') && <div className="network-notice" role="alert"><WifiOff size={15} /><span>{connection === 'offline' ? t('app.offline') : t('app.reconnecting')}</span><button type="button" className="text-button" onClick={reconnect}>{t('app.reconnect')}</button></div>}
-      {stateError && <ErrorNotice action={<button type="button" className="text-button" onClick={reconnect}>Reconnect</button>}>{stateError}</ErrorNotice>}
-      {state && !state.config.configured && providers && !providers.providers?.some(p => p.apiKeyConfigured) && <div className="configuration-notice" role="alert"><ShieldAlert size={15} /><span>{t('app.modelNotConfigured')}</span></div>}
+      {stateError && <ErrorNotice action={<button type="button" className="text-button" onClick={reconnect}>{t('app.reconnect')}</button>}>{stateError}</ErrorNotice>}
+      {state && !canRun && <div className="configuration-notice" role="alert"><ShieldAlert size={15} /><span>{t('app.modelNotConfigured')}</span></div>}
       {errors.map((item) => <ErrorNotice key={item.id} onDismiss={() => dismiss(item.id)}><strong>{item.label}</strong><p>{item.message}</p></ErrorNotice>)}
-      {notice && <div className="action-notice" role="status"><CheckCircle2 size={14} /><span>{notice}</span><IconButton label="Dismiss notification" onClick={() => setNotice('')}><X size={14} /></IconButton></div>}
+      {notice && <div className="action-notice" role="status"><CheckCircle2 size={14} /><span>{notice}</span><IconButton label={t('app.dismissNotice')} onClick={() => setNotice('')}><X size={14} /></IconButton></div>}
     </div>
 
     <div className="workspace-body">
@@ -297,10 +342,16 @@ export default function App() {
         <Sidebar state={state} selectedId={selectedId} onSelect={selectTask} onNew={newTask} open={sidebarOpen && windowMode === 'agents'} drawer={sidebarDrawer} onClose={closeSidebar} connection={connection} onEditor={() => setWindowMode('editor')} />
         <main className="main-workspace" inert={modalOpen}>
           <div className="conversation-header">
-            <div className="conversation-title">{!sidebarOpen && <IconButton label="Show task sidebar" onClick={toggleSidebar}><PanelLeft size={16} /></IconButton>}<span className="conversation-title-text">{task ? taskTitle(task) : selectedId ? 'Conversation' : 'New agent'}</span>{task && <Status status={task.status} />}</div>
-            <div className="conversation-header-actions"><IconButton label="Refresh workspace state" disabled={refreshing} onClick={() => refresh()}><RefreshCw size={14} className={refreshing ? 'spin' : undefined} /></IconButton><IconButton label={artifactsOpen ? 'Hide task details' : 'Show changes and activity'} aria-expanded={artifactsOpen} onClick={() => artifactsOpen ? closeArtifacts() : openArtifacts(artifactsTab)}><PanelRight size={16} /></IconButton></div>
+            <div className="conversation-title">{!sidebarOpen && <IconButton label={t('app.showSidebar')} onClick={toggleSidebar}><PanelLeft size={16} /></IconButton>}<span className="conversation-title-text">{task ? taskTitle(task, t) : selectedId ? t('app.conversationTitle') : t('app.newTask')}</span>{task && <Status status={task.status} />}</div>
+            <div className="conversation-header-actions"><IconButton label={t('app.refresh')} disabled={refreshing} onClick={() => refresh()}><RefreshCw size={14} className={refreshing ? 'spin' : undefined} /></IconButton><IconButton label={artifactsOpen ? t('app.hideDetails') : t('app.showDetails')} aria-expanded={artifactsOpen} onClick={() => artifactsOpen ? closeArtifacts() : openArtifacts(artifactsTab)}><PanelRight size={16} /></IconButton></div>
           </div>
-          <Conversation task={task} selectedId={selectedId} config={state?.config} draft={drafts[draftKey] || ''} onDraft={updateDraft} taskMode={taskMode} onMode={setNewMode} inputRef={inputRef} pending={pending} onSubmit={submitMessage} onStop={stopTask} onRetry={retryTask} onApprove={approveTask} onOpenFile={openFile} onShowActivity={() => openArtifacts('activity')} onShowChanges={() => openArtifacts('changes')} ready={Boolean(state)} providers={providers} onManage={() => setSettingsOpen(true)} onSelectModel={(providerId, modelId) => { void run('model', t('providers.switchFailed'), async (signal) => { await request('/api/settings/model', { body: { providerId, modelId }, signal }); await refreshProviders(); }); }} />
+          {task && <div className="conversation-runbar">
+            <RunConfigBadges config={taskRunConfig} />
+            {task.verification && <VerificationChip verification={normalizeVerification(task)} />}
+            {todos.total > 0 && <span className="run-chip runbar-todos" title={t('todos.title')}>{t('todos.progress', todos)}</span>}
+            {pendingChanges > 0 && <button type="button" className="run-chip runbar-changes" onClick={() => openArtifacts('changes')}>{pendingChanges === 1 ? t('conv.reviewOne') : t('conv.reviewMany', { n: pendingChanges })}</button>}
+          </div>}
+          <Conversation task={task} selectedId={selectedId} config={state?.config} draft={draftValue} onDraft={updateDraft} runConfig={newRunConfig} taskRunConfig={taskRunConfig} onRunConfigChange={updateRunConfig} modelReady={canRun} inputRef={inputRef} pending={pending} onSubmit={submitMessage} onStop={stopTask} onRetry={retryTask} onApprove={approveTask} onOpenFile={openFile} onShowActivity={() => openArtifacts('activity')} onShowChanges={() => openArtifacts('changes')} ready={Boolean(state)} providers={providers} onManage={() => setSettingsOpen(true)} />
         </main>
         <Artifacts task={task} tab={artifactsTab} onTab={setArtifactsTab} open={artifactsOpen && windowMode === 'agents'} drawer={artifactsDrawer} onClose={closeArtifacts} pending={pending} onChangeAction={reviewChange} onOpenFile={openFile} />
       </section>

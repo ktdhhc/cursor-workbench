@@ -55,9 +55,14 @@ test('persists exact public task shape and completes a real streamed tool loop',
   const created = await engine.createTask({ prompt: 'Update the file', mode: 'agent', title: 'Real edit' });
   const done = await waitFor(engine, created.id);
   assert.equal(done.status, 'completed', done.error);
-  assert.deepEqual(Object.keys(done).sort(), ['id', 'title', 'prompt', 'status', 'createdAt', 'updatedAt', 'messages', 'activities', 'changes', 'approval', 'error', 'providerId', 'model'].sort());
-  assert.deepEqual(done.messages.map(x => x.role), ['user', 'assistant']);
-  assert.ok(done.messages.every(x => Object.keys(x).sort().join() === 'content,id,role'));
+  assert.deepEqual(Object.keys(done).sort(), ['id', 'title', 'prompt', 'status', 'createdAt', 'updatedAt', 'messages', 'activities', 'changes', 'todos', 'verification', 'plan', 'approval', 'interaction', 'error', 'providerId', 'model', 'runConfig', 'context', 'contextRefs'].sort());
+  assert.equal(done.messages[0].role, 'user');
+  assert.ok(done.messages.slice(1).every(x => x.role === 'assistant'));
+  assert.equal(done.messages.at(-1).content, 'Updated hello.txt.');
+  assert.ok(done.messages.every(x => Object.keys(x).sort().join() === 'content,createdAt,id,role'));
+  assert.equal(done.runConfig.mode, 'agent');
+  assert.equal(done.runConfig.permissionMode, 'edit');
+  assert.equal(done.verification.status, 'blocked');
   assert.equal(done.messages.at(-1).content, 'Updated hello.txt.');
   assert.equal(done.changes[0].before, 'before');
   assert.equal(done.changes[0].after, 'after');
@@ -109,7 +114,7 @@ test('approval exposes exact command and cwd, denial never spawns, and approved 
   assert.equal(waiting.approval.cwd, workspace);
   await assert.rejects(readFile(path.join(workspace, 'denied.txt')), { code: 'ENOENT' });
   await engine.approveTask(created.id, false);
-  assert.equal((await waitFor(engine, created.id)).activities[0].status, 'cancelled');
+  assert.equal((await waitFor(engine, created.id)).activities[0].status, 'rejected');
   await assert.rejects(readFile(path.join(workspace, 'denied.txt')), { code: 'ENOENT' });
   await engine.continueTask(created.id, 'Run the approved diagnostic instead');
   await waitFor(engine, created.id, x => x.status === 'waiting_approval');
@@ -317,4 +322,127 @@ test('streaming never exposes a partial provider credential while chunks are ass
   assert.equal(done.status, 'completed');
   assert.ok(!visible.some(text => text.includes(provider.apiKey.slice(0, 8))));
   assert.ok(!(await readFile(path.join(stateDir, 'tasks.json'), 'utf8')).includes(provider.apiKey));
+});
+
+test('task run config freezes mode, permission, model and reasoning at creation', async t => {
+  const resolutions = [];
+  const { engine } = await fixture(t, async (_url, request) => {
+    const body = JSON.parse(request.body);
+    assert.equal(body.reasoning_effort, 'high');
+    return response({ content: 'Configured.' });
+  }, {
+    providerResolver: (providerId, modelId, options) => {
+      resolutions.push({ providerId, modelId, options });
+      return { providerId, baseUrl: provider.baseUrl, model: modelId, apiKey: provider.apiKey, reasoningLevel: options.reasoningLevel, requestPatch: { reasoning_effort: options.reasoningLevel } };
+    },
+  });
+  const created = await engine.createTask({ prompt: 'Debug it', runConfig: { mode: 'debug', permissionMode: 'build', modelSelection: { providerId: 'custom', modelId: 'reasoning-model', options: { reasoningLevel: 'high' } } } });
+  const done = await waitFor(engine, created.id);
+  assert.equal(done.runConfig.mode, 'debug');
+  assert.equal(done.runConfig.permissionMode, 'build');
+  assert.deepEqual(done.runConfig.modelSelection, { providerId: 'custom', modelId: 'reasoning-model', options: { reasoningLevel: 'high' } });
+  assert.equal(resolutions.length >= 2, true);
+});
+
+test('build asks before edits, edit auto-edits, and yolo auto-runs commands', async t => {
+  const firstTurn = new Set();
+  const { engine, workspace } = await fixture(t, async (_url, request) => {
+    const body = JSON.parse(request.body);
+    const prompt = body.messages.find(message => message.role === 'user')?.content;
+    if (!firstTurn.has(prompt)) {
+      firstTurn.add(prompt);
+      if (prompt === 'Build edit') return response({ tool_calls: [tool('write_file', { path: 'build.txt', content: 'ok', expectedHash: null }, 'build-edit')] });
+      if (prompt === 'Auto edit') return response({ tool_calls: [tool('write_file', { path: 'edit.txt', content: 'ok', expectedHash: null }, 'auto-edit')] });
+      if (prompt === 'Auto command') return response({ tool_calls: [tool('run_command', { command: 'echo yolo', cwd: '.' }, 'command-yolo')] });
+    }
+    const needsVerification = body.messages.some(message => message.role === 'system' && message.content?.startsWith('You changed workspace files'));
+    const alreadyReported = body.messages.some(message => message.role === 'tool' && message.content?.includes('No project test script'));
+    if (needsVerification && !alreadyReported) return response({ tool_calls: [tool('report_verification', { status: 'blocked', summary: 'No project test script in this fixture.' }, `verification-${prompt}`)] });
+    return response({ content: 'Done.' });
+  });
+  const build = await engine.createTask({ prompt: 'Build edit', runConfig: { mode: 'agent', permissionMode: 'build' } });
+  const buildWaiting = await waitFor(engine, build.id, task => task.status === 'waiting_approval');
+  assert.equal(buildWaiting.approval.type, 'edit');
+  await engine.approveTask(build.id, true);
+  assert.equal((await waitFor(engine, build.id)).status, 'completed');
+  const edit = await engine.createTask({ prompt: 'Auto edit', runConfig: { mode: 'agent', permissionMode: 'edit' } });
+  assert.equal((await waitFor(engine, edit.id)).status, 'completed');
+  assert.equal(await readFile(path.join(workspace, 'edit.txt'), 'utf8'), 'ok');
+  const yolo = await engine.createTask({ prompt: 'Auto command', runConfig: { mode: 'agent', permissionMode: 'yolo' } });
+  const yoloDone = await waitFor(engine, yolo.id);
+  assert.equal(yoloDone.status, 'completed');
+  assert.match(JSON.parse(yoloDone.activities[0].output).output, /yolo/);
+});
+
+test('plan mode is read-only until a submitted plan is approved', async t => {
+  let turn = 0;
+  const { engine, workspace } = await fixture(t, async () => {
+    if (++turn === 1) return response({ tool_calls: [tool('write_file', { path: 'blocked.txt', content: 'bad', expectedHash: null }, 'blocked'), tool('submit_plan', { plan: '1. Inspect\n2. Implement\n3. Test' }, 'plan')] });
+    if (turn === 2) return response({ tool_calls: [tool('write_file', { path: 'approved.txt', content: 'good', expectedHash: null }, 'approved-edit')] });
+    return response({ content: 'Implemented.' });
+  });
+  const created = await engine.createTask({ prompt: 'Plan then implement', runConfig: { mode: 'plan', permissionMode: 'edit' } });
+  const waiting = await waitFor(engine, created.id, task => task.status === 'waiting_approval');
+  assert.equal(waiting.approval.type, 'plan');
+  assert.equal(waiting.activities[0].status, 'error');
+  await assert.rejects(readFile(path.join(workspace, 'blocked.txt')), { code: 'ENOENT' });
+  await engine.approveTask(created.id, true);
+  const done = await waitFor(engine, created.id);
+  assert.equal(done.status, 'completed');
+  assert.equal(done.plan.status, 'approved');
+  assert.equal(done.runConfig.mode, 'agent');
+  assert.equal(await readFile(path.join(workspace, 'approved.txt'), 'utf8'), 'good');
+});
+
+test('retry is a system recovery event, not a fabricated user message', async t => {
+  let fail = true;
+  const { engine } = await fixture(t, async (_url, request) => {
+    if (fail) return new Response('bad', { status: 500 });
+    const messages = JSON.parse(request.body).messages;
+    assert.equal(messages.filter(message => message.role === 'user').length, 1);
+    assert.ok(messages.some(message => message.role === 'system' && /previous turn failed/i.test(message.content)));
+    return response({ content: 'Recovered.' });
+  });
+  const created = await engine.createTask({ prompt: 'Recover me' });
+  await waitFor(engine, created.id);
+  fail = false;
+  await engine.retryTask(created.id);
+  const done = await waitFor(engine, created.id);
+  assert.equal(done.status, 'completed');
+  assert.equal(done.messages.filter(message => message.role === 'user').length, 1);
+  assert.ok(done.activities.some(activity => activity.tool === 'retry'));
+});
+
+test('verification commands update structured verification state', async t => {
+  let turn = 0;
+  const { engine } = await fixture(t, async () => ++turn === 1
+    ? response({ tool_calls: [tool('run_command', { command: nodeCommand("console.log('ok')") + ' && node --test', timeoutMs: 3000 }, 'verify')] })
+    : response({ content: 'Verified.' }));
+  const created = await engine.createTask({ prompt: 'Verify', runConfig: { mode: 'agent', permissionMode: 'yolo' } });
+  const done = await waitFor(engine, created.id);
+  assert.equal(done.verification.status, 'passed');
+  assert.equal(done.verification.checks.length, 1);
+  assert.equal(done.verification.checks[0].status, 'passed');
+});
+
+test('ask_user blocks without guessing and resumes with the explicit answer', async t => {
+  let turn = 0;
+  const { engine } = await fixture(t, async (_url, request) => {
+    const body = JSON.parse(request.body);
+    if (++turn === 1) return response({ tool_calls: [tool('ask_user', { question: 'Which package manager?', options: [
+      { label: 'npm', description: 'Use package-lock.json.' }, { label: 'pnpm', description: 'Use pnpm-lock.yaml.' },
+    ] }, 'question')] });
+    const result = JSON.parse(body.messages.at(-1).content);
+    assert.equal(result.answer, 'pnpm');
+    return response({ content: 'Using pnpm.' });
+  });
+  const created = await engine.createTask({ prompt: 'Choose tooling' });
+  const waiting = await waitFor(engine, created.id, task => task.status === 'waiting_input');
+  assert.equal(waiting.interaction.type, 'question');
+  assert.equal(waiting.interaction.options.length, 2);
+  await engine.answerTask(created.id, 'pnpm');
+  const done = await waitFor(engine, created.id);
+  assert.equal(done.status, 'completed');
+  assert.equal(done.interaction, null);
+  assert.equal(done.messages.at(-1).content, 'Using pnpm.');
 });

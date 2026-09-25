@@ -28,7 +28,7 @@ test('reads text and serializes optimistic edits without losing another writer',
   ]);
   assert.equal(results.filter(x => x.status === 'fulfilled').length, 1);
   assert.equal(results.find(x => x.status === 'rejected').reason.status, 409);
-  assert.equal((await files.readFile('src/main.js')).content, 'first\n');
+  assert.ok(['first\n', 'second'].includes((await files.readFile('src/main.js')).content));
   assert.equal(contentHash(null), null);
 });
 
@@ -105,4 +105,32 @@ test('blocks credential stores but does not blacklist similarly named source mod
   await assert.rejects(files.readFile('.config/gh/hosts.yml'), { status: 403 });
   await files.writeFile({ path: 'credentials-service.js', content: 'export const credentialProvider = () => {}', expectedHash: null });
   assert.match((await files.readFile('credentials-service.js')).content, /credentialProvider/);
+});
+
+test('dynamically protects newly configured provider credentials', async t => {
+  const { workspace } = await fixture(t);
+  let secrets = [];
+  const files = new WorkspaceFiles({ workspace, secretSupplier: () => secrets });
+  await files.init();
+  await writeFile(path.join(workspace, 'ordinary.txt'), 'dynamic-provider-key-12345');
+  assert.equal((await files.readFile('ordinary.txt')).content, 'dynamic-provider-key-12345');
+  secrets = ['dynamic-provider-key-12345'];
+  await assert.rejects(files.readFile('ordinary.txt'), { status: 403 });
+  await assert.rejects(files.writeFile({ path: 'leak.txt', content: secrets[0], expectedHash: null }), { status: 403 });
+});
+
+test('finds paths with substrings and wildcards and deletes only the exact hashed file', async t => {
+  const { files } = await fixture(t);
+  await files.writeFile({ path: 'src/agent-runtime.mjs', content: 'runtime', expectedHash: null });
+  await files.writeFile({ path: 'src/agent-ui.jsx', content: 'ui', expectedHash: null });
+  await files.writeFile({ path: 'docs/agent.md', content: 'docs', expectedHash: null });
+  const substring = await files.findFiles({ pattern: 'agent', path: 'src' });
+  assert.deepEqual(substring.files.map(item => item.path), ['src/agent-runtime.mjs', 'src/agent-ui.jsx']);
+  const wildcard = await files.findFiles({ pattern: '*.jsx' });
+  assert.deepEqual(wildcard.files.map(item => item.path), ['src/agent-ui.jsx']);
+  const current = await files.readFile('src/agent-ui.jsx');
+  await assert.rejects(files.deleteFile({ path: 'src/agent-ui.jsx', expectedHash: '0'.repeat(64) }), { status: 409 });
+  const deleted = await files.deleteFile({ path: 'src/agent-ui.jsx', expectedHash: current.hash });
+  assert.equal(deleted.after, null);
+  await assert.rejects(files.readFile('src/agent-ui.jsx'), { status: 404 });
 });

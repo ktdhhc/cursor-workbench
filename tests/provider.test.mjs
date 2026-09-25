@@ -87,3 +87,54 @@ test('accepts CR-only SSE framing and never executes incomplete tool-call stream
     { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'tool', function: { name: 'write_file', arguments: '{}' } }] } }] }, '[DONE]',
   ]) }), /tool.*finish|finish.*tool/i);
 });
+
+test('applies only the resolved top-level or nested reasoning request patch', async () => {
+  const bodies = [];
+  const complete = { choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] };
+  for (const requestPatch of [
+    {},
+    { reasoning_effort: 'high' },
+    { reasoning: { effort: 'medium' } },
+  ]) {
+    await streamChatCompletion({
+      ...config,
+      messages: [{ role: 'user', content: 'go' }],
+      requestPatch,
+      fetchImpl: async (_url, options) => {
+        bodies.push(JSON.parse(options.body));
+        return sse([complete, '[DONE]']);
+      },
+    });
+  }
+  assert.equal('reasoning_effort' in bodies[0], false, 'default sends no top-level reasoning field');
+  assert.equal('reasoning' in bodies[0], false, 'default sends no nested reasoning field');
+  assert.equal(bodies[1].reasoning_effort, 'high');
+  assert.equal('reasoning' in bodies[1], false, 'top-level mapping does not also send a nested mapping');
+  assert.deepEqual(bodies[2].reasoning, { effort: 'medium' });
+  assert.equal('reasoning_effort' in bodies[2], false, 'nested mapping does not also send a top-level mapping');
+});
+
+test('fails closed on unsafe request patches before starting a provider request', async () => {
+  const unsafe = [
+    { model: 'other' },
+    { messages: [] },
+    { tools: [] },
+    { tool_choice: 'none' },
+    { stream: false },
+    JSON.parse('{"__proto__":{"polluted":true}}'),
+    { reasoning: JSON.parse('{"constructor":{"prototype":{"polluted":true}}}') },
+    { metadata: new Date() },
+    { temperature: undefined },
+    { temperature: Number.NaN },
+    [],
+  ];
+  for (const requestPatch of unsafe) {
+    let fetched = false;
+    await assert.rejects(
+      streamChatCompletion({ ...config, messages: [], requestPatch, fetchImpl: async () => { fetched = true; } }),
+      error => error?.status === 400,
+    );
+    assert.equal(fetched, false);
+  }
+  assert.equal({}.polluted, undefined);
+});
