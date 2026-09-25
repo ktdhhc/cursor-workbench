@@ -61,6 +61,18 @@ test('editor exposure is opt-in through EDITOR_ENABLED', async () => {
   assert.match(app, /editorEnabled/);
 });
 
+test('workbench theme toggle syncs the embedded editor through the bridge', async () => {
+  const server = await readFile(path.join(root, 'server/index.mjs'), 'utf8');
+  assert.match(server, /api\/editor\/theme/);
+  assert.match(server, /EDITOR_THEMES = \{ dark: 'Dark Modern', light: 'Light Modern' \}/);
+  const extension = await readFile(path.join(root, 'extension/extension.cjs'), 'utf8');
+  assert.match(extension, /setTheme/);
+  assert.match(extension, /colorCustomizations/);
+  assert.match(extension, /if \(config\.get\('colorTheme'\) === name\) return;/);
+  const app = await readFile(path.join(root, 'client/App.jsx'), 'utf8');
+  assert.match(app, /api\/editor\/theme/);
+});
+
 test('doctor reports actionable environment findings', async () => {
   const { collect } = await import('../scripts/doctor.mjs');
   const report = await collect();

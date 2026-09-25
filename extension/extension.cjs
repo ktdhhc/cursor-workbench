@@ -57,6 +57,29 @@ function activate(context) {
     await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
   }
 
+  // Keep the embedded editor's chrome in step with the Agents window theme.
+  const THEME_PALETTES = {
+    'Dark Modern': {
+      'editor.background': '#191a1b', 'sideBar.background': '#161718', 'activityBar.background': '#161718',
+      'titleBar.activeBackground': '#161718', 'statusBar.background': '#161718', 'tab.activeBackground': '#191a1b',
+      'tab.inactiveBackground': '#161718', 'editorGroupHeader.tabsBackground': '#161718',
+    },
+    'Light Modern': {
+      'editor.background': '#f7f6f2', 'sideBar.background': '#edece7', 'activityBar.background': '#edece7',
+      'titleBar.activeBackground': '#edece7', 'statusBar.background': '#edece7', 'tab.activeBackground': '#f7f6f2',
+      'tab.inactiveBackground': '#edece7', 'editorGroupHeader.tabsBackground': '#edece7',
+    },
+  };
+
+  async function setTheme(name) {
+    const palette = THEME_PALETTES[name];
+    if (!palette) throw new Error(`Unknown editor theme: ${name}`);
+    const config = vscode.workspace.getConfiguration('workbench');
+    if (config.get('colorTheme') === name) return;
+    await config.update('colorTheme', name, vscode.ConfigurationTarget.Global);
+    await config.update('colorCustomizations', palette, vscode.ConfigurationTarget.Global);
+  }
+
   async function poll() {
     if (disposed || busy) return;
     busy = true;
@@ -66,6 +89,7 @@ function activate(context) {
       for (const command of commands) {
         try {
           if (command.type === 'open') await openFile(command.path);
+          else if (command.type === 'setTheme') await setTheme(command.theme);
           await request('/api/bridge/ack', { id: command.id, ok: true });
         } catch (error) {
           await request('/api/bridge/ack', { id: command.id, ok: false, error: error.message });

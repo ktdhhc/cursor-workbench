@@ -87,7 +87,7 @@ const dict = {
     'app.editorUnavailable': 'Editor URL unavailable', 'app.editorUnavailableBody': 'The server must provide a same-origin /editor/ URL for this workspace.',
     'app.connecting': 'Connecting to your workspace', 'app.editorReadyHint': 'The editor will open when the local server is ready.',
     'app.openSent': 'Open request sent for {path}.', 'app.opening': 'Opening {path} in the editor…', 'app.opened': 'Opened {path} in the editor.',
-    'app.untitled': 'Untitled agent', 'app.themeTitle': '切换浅色 / 深色主题（编辑器面板主题在 VS Code 内单独设置）',
+    'app.untitled': 'Untitled agent', 'app.themeTitle': '切换浅色 / 深色主题（编辑器窗口会同步切换）',
     'app.themeLight': 'Switch to light theme', 'app.themeDark': 'Switch to dark theme', 'app.langTitle': '切换界面语言 / Switch language',
     'editor.notEnabledTitle': 'Editor not enabled on this machine',
     'editor.notEnabledBody': 'Agent tasks, file tools and approved terminal commands work without it. To browse and hand-edit files in the real editor, enable it one of these ways:',

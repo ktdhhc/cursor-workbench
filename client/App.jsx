@@ -92,6 +92,7 @@ export default function App() {
   const navigationRevision = useRef(0);
   const requestedModeAt = useRef(readPreference('requestedModeAt', null));
   const frameCleanup = useRef(null);
+  const editorThemeSent = useRef(null);
   const shortcutsRef = useRef(null);
   const task = state?.tasks.find((item) => item.id === selectedId) || null;
   const activeCount = state?.tasks.filter(isActive).length || 0;
@@ -122,6 +123,13 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem('workbench.theme', theme); } catch { /* Theme stays per-session without storage. */ }
   }, [theme]);
+  // Mirror the workbench theme into the embedded editor whenever its bridge is alive.
+  useEffect(() => {
+    if (!state?.bridgeConnected || state.config.editorEnabled === false) return;
+    if (editorThemeSent.current === theme) return;
+    editorThemeSent.current = theme;
+    request('/api/editor/theme', { body: { theme } }).catch(() => { editorThemeSent.current = null; });
+  }, [theme, state?.bridgeConnected, state?.config.editorEnabled]);
   useEffect(() => { document.title = t('app.title'); }, [t]);
   useEffect(() => { savePreference('windowMode', windowMode); }, [windowMode]);
   useEffect(() => { savePreference('selectedTask', selectedId); }, [selectedId]);

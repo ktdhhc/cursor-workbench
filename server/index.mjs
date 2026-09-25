@@ -180,6 +180,16 @@ app.post('/api/settings/model', async (req, res) => {
   broadcast();
   res.json(registry.publicState());
 });
+const EDITOR_THEMES = { dark: 'Dark Modern', light: 'Light Modern' };
+app.post('/api/editor/theme', async (req, res) => {
+  if (!config.editorEnabled) return res.status(409).json({ error: 'Editor is not enabled on this machine.' });
+  const theme = EDITOR_THEMES[req.body?.theme];
+  if (!theme) return res.status(400).json({ error: "theme must be 'dark' or 'light'." });
+  if (commandQueue.length >= 50) return res.status(503).json({ error: 'Editor command queue is full. Check the bridge connection.' });
+  const command = { id: randomUUID(), type: 'setTheme', theme, createdAt: Date.now() };
+  commandQueue.push(command);
+  res.status(202).json({ id: command.id, queued: true });
+});
 app.post('/api/editor/open', async (req, res) => {
   const file = await engine.files.readFile(req.body.path);
   if (commandQueue.length >= 50) return res.status(503).json({ error: 'Editor command queue is full. Check the bridge connection.' });
